@@ -17,7 +17,7 @@ anyhow = "1.0.83"
 aws-lc-rs = "1.8.1"
 base64 = "0.22.1"
 byteorder = "1.5.0"
-cel-interpreter = "0.7.1"
+cel-interpreter = "0.8.1"
 chrono = { version = "0.4.38", default-features = false, features = ["std", "clock"] }
 hex = "0.4.3"
 serde = { version = "1.0.204", features = ["derive"] }
