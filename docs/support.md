@@ -1,6 +1,6 @@
 # Support
 
-Best effort support is available through [GitHub Issues](https://github.com/awslabs/aws-nitro-enclaves-vault/issues) or by emailing [aws-nitro-enclaves-vault-solution@amazon.com](mailto:aws-nitro-enclaves-vault-solution@amazon.com).
+Best effort support is available through [GitHub Issues](https://github.com/aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves/issues) or by emailing [aws-nitro-enclaves-vault-solution@amazon.com](mailto:aws-nitro-enclaves-vault-solution@amazon.com).
 
 ## Roadmap
 
