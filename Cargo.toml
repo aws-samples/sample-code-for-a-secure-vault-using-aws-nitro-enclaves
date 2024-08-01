@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = [
+    "enclave",
+    "parent"
+]
+
+[profile.release]
+strip = true      # Automatically strip symbols from the binary
+lto = "thin"      # Enable link time optimization
+codegen-units = 1 # Maximize size reduction optimizations
+panic = "abort"   # Terminate process upon panic
+opt-level = "s"   # optimize for size

@@ -1,0 +1,37 @@
+name: deploy to mkdocs
+
+# the two different ways to trigger the workflow
+on:
+  # enable manual trigger button in github actions web
+  workflow_dispatch:
+
+  # enable auto trigger based on both path and branch
+  push:
+
+    # only main branch
+    branches:
+      - main
+
+    # at least one changed file must match this path
+    paths:
+      - "docs/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.repository_owner == 'aws-samples'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+      - uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5
+        with:
+          python-version: 3.x
+          cache: pip
+      - run: pip install mkdocs-material mkdocs-static-i18n==1.2.0
+      - run: mkdocs gh-deploy --force

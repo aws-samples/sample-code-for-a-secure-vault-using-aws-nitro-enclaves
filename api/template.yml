@@ -1,0 +1,370 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: "AWS::Serverless-2016-10-31"
+Description: Nitro Enclaves Vault - API
+
+Parameters:
+  pVpcId:
+    Type: "AWS::EC2::VPC::Id"
+    Description: VPC ID
+  pSubnetIds:
+    Type: "List<AWS::EC2::Subnet::Id>"
+    Description: Subnet IDs for Lambda function
+  pEncryptionKeyArn:
+    Type: String
+    Description: Encryption Key ARN
+  pDomainName:
+    Type: String
+    Description: Domain name for vault API
+  pVpcEndpointId:
+    Type: String
+    Description: VPC Endpoint ID to associate for a private API
+    Default: ""
+  pPermissionsBoundaryArn:
+    Type: String
+    Description: IAM Permissions Boundary Policy ARN
+  pCodeSigningConfigArn:
+    Type: String
+    Description: Code Signing Config ARN
+
+Conditions:
+  cHasVpcEndpointId: !Not [!Equals [!Ref pVpcEndpointId, ""]]
+
+Resources:
+  rLambdaSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W5
+            reason: "Ignoring egress to anywhere"
+          - id: W40
+            reason: "Ignoring egress to anywhere"
+    Properties:
+      GroupDescription: Nitro Enclaves Vault API
+      SecurityGroupEgress:
+        - CidrIp: "0.0.0.0/0"  # Required for access to DynamoDB
+          Description: Allow HTTPS traffic to anywhere
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+      VpcId: !Ref pVpcId
+
+  rTable:
+    Type: "AWS::DynamoDB::GlobalTable"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      Replicas:
+        - PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+          Region: !Ref "AWS::Region"
+          ResourcePolicy:
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Sid: EnforceIdentityPerimeter
+                  Effect: Deny
+                  Principal:
+                    AWS: "*"
+                  Action: "dynamodb:*"
+                  Resource: "*"
+                  Condition:
+                    StringNotEqualsIfExists:
+                      "aws:PrincipalAccount": !Ref "AWS::AccountId"
+                    BoolIfExists:
+                      "aws:PrincipalIsAWSService": "false"
+                - Sid: EnforceNetworkPerimeter
+                  Effect: Deny
+                  Principal:
+                    AWS: "*"
+                  Action: "dynamodb:*"
+                  Resource: "*"
+                  Condition:
+                    StringNotEqualsIfExists:
+                      "aws:SourceVpc": !Ref "pVpcId"
+                      "aws:PrincipalTag/network-perimeter-exception": "true"
+                    BoolIfExists:
+                      "aws:PrincipalIsAWSService": "false"
+                      "aws:ViaAWSService": "false"
+                    ArnNotLikeIfExists:
+                      "aws:PrincipalArn": !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/*"
+          TableClass: STANDARD
+          Tags:
+            - Key: "aws-cloudformation:stack-name"
+              Value: !Ref "AWS::StackName"
+            - Key: "aws-cloudformation:stack-id"
+              Value: !Ref "AWS::StackId"
+            - Key: "aws-cloudformation:logical-id"
+              Value: rTable
+      SSESpecification:
+        SSEEnabled: true
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      TimeToLiveSpecification:
+        AttributeName: expire_at
+        Enabled: true
+
+  rApiFunctionLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: "Ignoring KMS key"
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${rApiFunction}"
+      RetentionInDays: 3
+
+  rApiFunctionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          Effect: Allow
+          Principal:
+            Service: !Sub "lambda.${AWS::URLSuffix}"
+          Action: "sts:AssumeRole"
+          Condition:
+            StringEquals:
+              "aws:SourceAccount": !Ref "AWS::AccountId"
+      Description: !Sub "DO NOT DELETE - Used by Lambda. Created by CloudFormation ${AWS::StackId}"
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaENIManagementAccess"
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AWSXrayWriteOnlyAccess"
+      Path: "/vault/"
+      PermissionsBoundary: !Ref pPermissionsBoundaryArn
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rApiFunctionRole
+
+  rApiFunctionPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: ApiFunctionPolicy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "dynamodb:GetItem"
+            Resource: !GetAtt rTable.Arn
+          - Effect: Allow
+            Action:
+              - "dynamodb:DeleteItem"
+              - "dynamodb:PutItem"
+              - "dynamodb:UpdateItem"
+            Resource: !GetAtt rTable.Arn
+            Condition:
+              "ForAnyValue:StringEquals":
+                "dynamodb:EnclosingOperation":
+                  - TransactWriteItems
+      Roles:
+        - !Ref rApiFunctionRole
+
+  rCloudWatchPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: CloudWatchLogs
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource: !GetAtt rApiFunctionLogGroup.Arn
+      Roles:
+        - !Ref rApiFunctionRole
+
+  # This policy explicitly denies the ability for the Lambda function to call
+  # these EC2 APIs, while still allowing the Lambda service to attach the
+  # function to the VPC using the attached AWSLambdaENIManagementAccess policy
+  # on the role.
+  #
+  # https://docs.aws.amazon.com/lambda/latest/dg/configuration-vpc.html#configuration-vpc-best-practice
+  rLambdaVpcDenyPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: DenyEC2Policy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Deny
+            Action:
+              - "ec2:CreateNetworkInterface"
+              - "ec2:DeleteNetworkInterface"
+              - "ec2:DescribeNetworkInterfaces"
+              - "ec2:DetachNetworkInterface"
+              - "ec2:AssignPrivateIpAddresses"
+              - "ec2:UnassignPrivateIpAddresses"
+            Resource: "*"
+            Condition:
+              ArnEquals:
+                "lambda:SourceFunctionArn": !GetAtt rApiFunction.Arn
+      Roles:
+        - !Ref rApiFunctionRole
+
+  rDependencyLayer:
+    Type: "AWS::Serverless::LayerVersion"
+    Metadata:
+      BuildMethod: python3.12
+      BuildArchitecture: arm64
+    Properties:
+      LicenseInfo: MIT-0
+      CompatibleArchitectures:
+        - arm64
+      CompatibleRuntimes:
+        - python3.12
+      ContentUri: dependencies
+      Description: !Sub "DO NOT DELETE - ${AWS::StackName} - Python Dependencies"
+      RetentionPolicy: Delete
+
+  rApi:
+    Type: "AWS::Serverless::Api"
+    Properties:
+      DefinitionBody:
+        openapi: "3.0"
+        info:
+          title: nitro-vault-ci-api
+          description: Nitro Enclaves Vault API
+          version: "1.0"
+        schemes:
+          - https
+        "x-amazon-apigateway-policy":
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal: "*"
+              Action: "execute-api:Invoke"
+              Resource: "execute-api:/*"
+            - !If
+              - cHasVpcEndpointId
+              - Effect: Deny
+                Principal: "*"
+                Resource: "execute-api:/*"
+                Condition:
+                  StringNotEquals:
+                    "aws:SourceVpce": !Ref pVpcEndpointId
+              - !Ref "AWS::NoValue"
+        paths:
+          "/{proxy+}":
+            "x-amazon-apigateway-any-method":
+              parameters:
+                - name: proxy
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+              produces:
+                - "application/json"
+              "x-amazon-apigateway-integration":
+                httpMethod: POST
+                passthroughBehavior: "when_no_match"
+                timeoutInMillis: 10000
+                type: aws_proxy
+                uri: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${rApiFunction.Arn}/invocations"
+      Description: Nitro Enclaves Vault API
+      EndpointConfiguration:
+        Type: !If
+          - cHasVpcEndpointId
+          - PRIVATE
+          - REGIONAL
+        VPCEndpointIds: !If
+          - cHasVpcEndpointId
+          - - !Ref pVpcEndpointId
+          - !Ref "AWS::NoValue"
+      OpenApiVersion: "3.1.0"
+      PropagateTags: true
+      StageName: v1
+      TracingEnabled: true
+
+  rApiFunctionPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt rApiFunction.Arn
+      Principal: !Sub "apigateway.${AWS::URLSuffix}"
+      SourceAccount: !Ref "AWS::AccountId"
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${rApi}/*/*/*"
+
+  rApiFunction:
+    Type: "AWS::Serverless::Function"
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: "Ignoring CloudWatch"
+          - id: W89
+            reason: "Ignoring VPC"
+          - id: W92
+            reason: "Ignoring Reserved Concurrency"
+    Properties:
+      Architectures:
+        - arm64
+      AutoPublishAlias: live
+      CodeSigningConfigArn: !Ref pCodeSigningConfigArn
+      CodeUri: src/
+      Description: !Sub "${AWS::StackName} - API"
+      Environment:
+        Variables:
+          AWS_STS_REGIONAL_ENDPOINTS: regional
+          LOG_LEVEL: DEBUG
+          POWERTOOLS_LOGGER_SAMPLE_RATE: 0.1
+          POWERTOOLS_METRICS_NAMESPACE: NitroVault
+          POWERTOOLS_SERVICE_NAME: api
+          POWERTOOLS_TRACER_CAPTURE_RESPONSE: false
+          TABLE_NAME: !Ref rTable
+          KEY_ARN: !Ref pEncryptionKeyArn
+          VAULT_URL: !Sub "https://${pDomainName}"
+      Handler: app.lambda_handler.handler
+      Layers:
+        - !Ref rDependencyLayer
+      MemorySize: 1024 # megabytes
+      PropagateTags: true
+      Role: !GetAtt rApiFunctionRole.Arn
+      Runtime: python3.12
+      Timeout: 10 # seconds
+      Tracing: Active
+      VersionDescription: !Sub "${AWS::StackName} - API"
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref rLambdaSecurityGroup
+        SubnetIds: !Ref pSubnetIds
+
+Outputs:
+  oApiFunctionArn:
+    Description: API Function ARN
+    Value: !GetAtt rApiFunction.Arn
+  oApiFunctionRoleArn:
+    Description: API Function Role ARN
+    Value: !GetAtt rApiFunctionRole.Arn
+  oTableName:
+    Description: DynamoDB Table Name
+    Value: !Ref rTable
+  oApiUrl:
+    Description: API Endpoint URL
+    Value: !Sub "https://${rApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/v1"
+  oSwaggerUrl:
+    Description: API Swagger URL
+    Value: !Sub "https://${rApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/v1/swagger"

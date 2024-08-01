@@ -1,0 +1,6 @@
+aws-lambda-powertools[tracer,parser]==2.42.0
+cryptography==43.0.0
+# uncomment when https://github.com/ctz/hpke-py/pull/6 is merged
+#hpke==0.3.0
+pksuid==1.1.2
+requests==2.32.3

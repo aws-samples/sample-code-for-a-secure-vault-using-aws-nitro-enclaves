@@ -1,0 +1,27 @@
+[package]
+name = "enclave-vault"
+version = "0.1.0"
+authors = ["Justin Plock <jplock@amazon.com>"]
+edition = "2021"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "enclave-vault"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.83"
+aws-lc-rs = "1.8.1"
+base64 = "0.22.1"
+byteorder = "1.5.0"
+cel-interpreter = "0.7.1"
+chrono = { version = "0.4.38", default-features = false, features = ["std", "clock"] }
+hex = "0.4.3"
+serde = { version = "1.0.204", features = ["derive"] }
+serde_json = "1.0.121"
+rustls = { version = "0.23.12", default-features = false, features = ["aws_lc_rs"] }
+vsock = "0.5.0"
+zeroize = { version = "1.8.1", features = ["zeroize_derive"] }

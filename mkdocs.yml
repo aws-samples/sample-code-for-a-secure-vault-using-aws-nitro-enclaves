@@ -1,0 +1,56 @@
+site_name: AWS Nitro Enclaves Vault
+repo_name: "aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves"
+repo_url: "https://github.com/aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves"
+edit_uri: edit/main/docs/
+theme:
+  name: material
+  custom_dir: overrides
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - tabs
+    - content.code.copy
+    - announce.dismiss
+    - header.autohide
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: switch to light mode
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Deployment Guide:
+    - Deployment: deployment.md
+    - Post Deployment Guide: post-deployment.md
+  - User Guide: user-guide.md
+  - Security: security.md
+  - FAQ: faq.md
+  - Support: support.md
+  - References: references.md
+markdown_extensions:
+  - toc:
+      permalink: true
+  - admonition
+  - codehilite
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.details
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      languages:
+        - locale: en
+          name: English
+          fixed_link: ./
+          build: true
+          default: true

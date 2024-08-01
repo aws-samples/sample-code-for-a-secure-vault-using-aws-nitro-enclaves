@@ -1,0 +1,31 @@
+[package]
+name = "parent-vault"
+version = "0.1.0"
+authors = ["Justin Plock <jplock@amazon.com>"]
+edition = "2021"
+publish = false
+default-run = "parent-vault"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "parent-vault"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.83"
+aws-config = { version = "1.5.4", default-features = false, features = ["rustls", "rt-tokio", "behavior-version-latest"]}
+aws-credential-types = "1.2.0"
+axum = { version = "0.7.5", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
+byteorder = "1.5.0"
+clap = { version = "4.5.11", features = ["derive", "env"]}
+rand = "0.8.5"
+serde = { version = "1.0.204", features = ["derive"] }
+serde_json = "1.0.121"
+thiserror = "1.0.63"
+tokio = { version = "1.39.2", features = ["rt-multi-thread", "process", "tracing"] }
+tracing = { version = "0.1.40", features = ["log"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt", "json"] }
+vsock = "0.5.0"
+zeroize = { version = "1.8.1", features = ["zeroize_derive"] }

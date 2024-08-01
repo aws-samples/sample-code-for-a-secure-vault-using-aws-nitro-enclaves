@@ -1,0 +1,31 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.12
+  pre_build:
+    commands:
+      - cd api
+      - make setup
+  build:
+    commands:
+      - echo Build started on `date`
+      - sam build --parallel --cached
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - sam package --s3-bucket ${S3_BUCKET} --s3-prefix api --kms-key-id ${CODEBUILD_KMS_KEY_ID} --no-progressbar --signing-profiles rDependencyLayer=${SIGNING_PROFILE} rApiFunction=${SIGNING_PROFILE} --output-template-file packaged.yml
+
+artifacts:
+  base-directory: api
+  files:
+    - packaged.yml  # Used by Deploy:DeployApi
+    - template_configuration.json  # Used by Deploy:DeployApi
+  discard-paths: yes
+
+cache:
+  files:
+    - '/root/.cache/**/*'
+    - '/root/api/.aws-sam/**/*'
+    - '/root/api/.venv/**/*'

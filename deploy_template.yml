@@ -1,0 +1,260 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Nitro Enclaves Vault - Deployment
+
+Resources:
+  rDeploymentRole:
+    Type: "AWS::IAM::Role"
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W11
+            reason: "Ignoring wildcard resource"
+          - id: W76
+            reason: "Ignoring large policy"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          Effect: Allow
+          Principal:
+            AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+          Action: "sts:AssumeRole"
+      Description: !Sub "Nitro Enclaves Vault Deployment Role. Created by CloudFormation ${AWS::StackId}"
+      Policies:
+        - PolicyName: DeploymentPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "cloudformation:DescribeStacks"
+                  - "cloudformation:ListStacks"
+                  - "ec2:CreateTags"
+                  - "ec2:DescribeAddresses"
+                  - "ec2:DescribeAvailabilityZones"
+                  - "ec2:DescribeInternetGateways"
+                  - "ec2:DescribeNatGateways"
+                  - "ec2:DescribeNetworkAcls"
+                  - "ec2:DescribeRouteTables"
+                  - "ec2:DescribeSecurityGroups"
+                  - "ec2:DescribeSubnets"
+                  - "ec2:DescribeVpcEndpoints"
+                  - "ec2:DescribeVpcs"
+                  - "kms:CreateKey"
+                  - "kms:ListAliases"
+                  - "lambda:CreateCodeSigningConfig"
+                  - "logs:DescribeLogGroups"
+                  - "logs:ListTagsForResource"
+                  - "route53:AssociateVPCWithHostedZone"
+                  - "route53:GetHostedZone"
+                  - "route53resolver:ListTagsForResource"
+                  - "s3:CreateBucket"
+                  - "signer:PutSigningProfile"
+                  - "states:ListTagsForResource"
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - "cloudformation:CreateChangeSet"
+                  - "cloudformation:DescribeChangeSet"
+                  - "cloudformation:ExecuteChangeSet"
+                  - "cloudformation:GetTemplateSummary"
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:*:${AWS::AccountId}:stack/*"
+              - Effect: Allow
+                Action:
+                  - "codeconnections:CreateConnection"
+                  - "codestar-connections:PassConnection"
+                  - "codeconnections:PassConnection"
+                  - "codeconnections:TagResource"
+                Resource: !Sub "arn:${AWS::Partition}:codeconnections:*:${AWS::AccountId}:*"
+              - Effect: Allow
+                Action:
+                  - "codebuild:CreateProject"
+                  - "codebuild:BatchGetProjects"
+                Resource: !Sub "arn:${AWS::Partition}:codebuild:*:${AWS::AccountId}:project/*"
+              - Effect: Allow
+                Action:
+                  - "codepipeline:CreatePipeline"
+                  - "codepipeline:GetPipeline"
+                  - "codepipeline:ListPipelineExecutions"
+                  - "codepipeline:StartPipelineExecution"
+                  - "codepipeline:TagResource"
+                Resource: !Sub "arn:${AWS::Partition}:codepipeline:*:${AWS::AccountId}:*"
+              - Effect: Allow
+                Action:
+                  - "ec2:AllocateAddress"
+                  - "ec2:CreateNatGateway"
+                Resource: !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:elastic-ip/*"
+              - Effect: Allow
+                Action:
+                  - "ec2:AttachInternetGateway"
+                  - "ec2:CreateInternetGateway"
+                Resource: !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:internet-gateway/*"
+              - Effect: Allow
+                Action: "ec2:CreateNatGateway"
+                Resource: !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:natgateway/*"
+              - Effect: Allow
+                Action:
+                  - "ec2:AssociateRouteTable"
+                  - "ec2:CreateRoute"
+                  - "ec2:CreateRouteTable"
+                  - "ec2:CreateVpcEndpoint"
+                Resource: !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:route-table/*"
+              - Effect: Allow
+                Action:
+                  - "ec2:AuthorizeSecurityGroupEgress"
+                  - "ec2:AuthorizeSecurityGroupIngress"
+                  - "ec2:CreateSecurityGroup"
+                  - "ec2:CreateVpcEndpoint"
+                  - "ec2:RevokeSecurityGroupEgress"
+                Resource: !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:security-group/*"
+              - Effect: Allow
+                Action:
+                  - "ec2:AssociateRouteTable"
+                  - "ec2:CreateNatGateway"
+                  - "ec2:CreateSubnet"
+                  - "ec2:CreateVpcEndpoint"
+                  - "ec2:ModifySubnetAttribute"
+                Resource: !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:subnet/*"
+              - Effect: Allow
+                Action: "ec2:CreateVpcEndpoint"
+                Resource: !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:vpc-endpoint/*"
+              - Effect: Allow
+                Action:
+                  - "ec2:AttachInternetGateway"
+                  - "ec2:CreateRouteTable"
+                  - "ec2:CreateSecurityGroup"
+                  - "ec2:CreateSubnet"
+                  - "ec2:CreateVpc"
+                  - "ec2:CreateVpcEndpoint"
+                  - "ec2:DescribeVpcAttribute"
+                  - "ec2:ModifyVpcAttribute"
+                Resource: !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:vpc/*"
+              - Effect: Allow
+                Action:
+                  - "iam:AttachRolePolicy"
+                  - "iam:CreateServiceLinkedRole"
+                  - "iam:CreateRole"
+                  - "iam:GetRole"
+                  - "iam:PassRole"
+                  - "iam:PutRolePolicy"
+                  - "iam:TagRole"
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/*"
+              - Effect: Allow
+                Action:
+                  - "iam:CreatePolicy"
+                  - "iam:GetRolePolicy"
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/*"
+              - Effect: Allow
+                Action: "kms:CreateAlias"
+                Resource: !Sub "arn:${AWS::Partition}:kms:*:${AWS::AccountId}:alias/*"
+              - Effect: Allow
+                Action:
+                  - "kms:CreateAlias"
+                  - "kms:DescribeKey"
+                  - "kms:GenerateDataKey"
+                  - "kms:GetKeyPolicy"
+                  - "kms:GetKeyRotationStatus"
+                  - "kms:ListResourceTags"
+                  - "kms:PutKeyPolicy"
+                  - "kms:TagResource"
+                Resource: !Sub "arn:${AWS::Partition}:kms:*:${AWS::AccountId}:key/*"
+              - Effect: Allow
+                Action: "lambda:GetCodeSigningConfig"
+                Resource: !Sub "arn:${AWS::Partition}:lambda:*:${AWS::AccountId}:code-signing-config:*"
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:PutRetentionPolicy"
+                  - "logs:TagResource"
+                Resource: !Sub "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:*"
+              - Effect: Allow
+                Action:
+                  - "route53resolver:CreateFirewallDomainList"
+                  - "route53resolver:CreateFirewallRule"
+                  - "route53resolver:GetFirewallDomainList"
+                  - "route53resolver:TagResource"
+                  - "route53resolver:UpdateFirewallDomains"
+                Resource: !Sub "arn:${AWS::Partition}:route53resolver:*:${AWS::AccountId}:firewall-domain-list/*"
+              - Effect: Allow
+                Action:
+                  - "route53resolver:AssociateFirewallRuleGroup"
+                  - "route53resolver:GetFirewallRuleGroupAssociation"
+                  - "route53resolver:TagResource"
+                Resource: !Sub "arn:${AWS::Partition}:route53resolver:*:${AWS::AccountId}:firewall-rule-group-association/*"
+              - Effect: Allow
+                Action:
+                  - "route53resolver:CreateFirewallRule"
+                  - "route53resolver:CreateFirewallRuleGroup"
+                  - "route53resolver:GetFirewallRuleGroup"
+                  - "route53resolver:ListFirewallRules"
+                  - "route53resolver:TagResource"
+                Resource: !Sub "arn:${AWS::Partition}:route53resolver:*:${AWS::AccountId}:firewall-rule-group/*"
+              - Effect: Allow
+                Action:
+                  - "s3:GetAccelerateConfiguration"
+                  - "s3:GetAnalyticsConfiguration"
+                  - "s3:GetBucketCORS"
+                  - "s3:GetBucketLogging"
+                  - "s3:GetBucketNotification"
+                  - "s3:GetBucketObjectLockConfiguration"
+                  - "s3:GetBucketOwnershipControls"
+                  - "s3:GetBucketPolicy"
+                  - "s3:GetBucketPublicAccessBlock"
+                  - "s3:GetBucketTagging"
+                  - "s3:GetBucketVersioning"
+                  - "s3:GetBucketWebsite"
+                  - "s3:GetEncryptionConfiguration"
+                  - "s3:GetIntelligentTieringConfiguration"
+                  - "s3:GetInventoryConfiguration"
+                  - "s3:GetLifecycleConfiguration"
+                  - "s3:GetMetricsConfiguration"
+                  - "s3:GetReplicationConfiguration"
+                  - "s3:PutBucketOwnershipControls"
+                  - "s3:PutBucketPolicy"
+                  - "s3:PutBucketPublicAccessBlock"
+                  - "s3:PutBucketTagging"
+                  - "s3:PutBucketVersioning"
+                  - "s3:PutEncryptionConfiguration"
+                  - "s3:PutLifecycleConfiguration"
+                Resource: !Sub "arn:${AWS::Partition}:s3:::*"
+              - Effect: Allow
+                Action:
+                  - "secretsmanager:CreateSecret"
+                  - "secretsmanager:DescribeSecret"
+                  - "secretsmanager:GetResourcePolicy"
+                  - "secretsmanager:PutResourcePolicy"
+                  - "secretsmanager:TagResource"
+                  - "secretsmanager:UpdateSecret"
+                Resource: !Sub "arn:${AWS::Partition}:secretsmanager:*:${AWS::AccountId}:secret:*"
+              - Effect: Allow
+                Action:
+                  - "signer:AddProfilePermission"
+                  - "signer:GetSigningProfile"
+                  - "signer:ListProfilePermissions"
+                  - "signer:TagResource"
+                Resource: !Sub "arn:${AWS::Partition}:signer:*:${AWS::AccountId}:/signing-profiles/*"
+              - Effect: Allow
+                Action:
+                  - "states:CreateStateMachine"
+                  - "states:DescribeStateMachine"
+                  - "states:PublishStateMachineVersion"
+                  - "states:TagResource"
+                Resource: !Sub "arn:${AWS::Partition}:states:*:${AWS::AccountId}:stateMachine:*"
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rDeploymentRole
+        - Key: "network-perimeter-exception"
+          Value: "true"
+
+Outputs:
+  oDeploymentRoleArn:
+    Description: Deployment Role ARN
+    Value: !GetAtt rDeploymentRole.Arn

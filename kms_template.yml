@@ -1,0 +1,263 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Nitro Enclaves Vault - KMS Key
+
+Parameters:
+  pVpcId:
+    Type: String
+    Description: VPC ID
+  pApiFunctionRoleArn:
+    Type: String
+    Description: API Function Role ARN
+    Default: ""
+  pApiFunctionArn:
+    Type: String
+    Description: API Function ARN
+    Default: ""
+  pInstanceRoleArn:
+    Type: String
+    Description: Instance Role ARN
+    Default: ""
+  pStepFunctionsRoleArn:
+    Type: String
+    Description: Step Functions Role ARN
+    Default: ""
+  pPrimaryKeyArn:
+    Type: String
+    Description: Primary Key ARN
+    Default: ""
+
+Conditions:
+  cHasApiFunctionRoleArn: !Not [!Equals [!Ref pApiFunctionRoleArn, ""]]
+  cHasApiFunctionArn: !Not [!Equals [!Ref pApiFunctionArn, ""]]
+  cHasInstanceRoleArn: !Not [!Equals [!Ref pInstanceRoleArn, ""]]
+  cHasStepFunctionsRoleArn: !Not [!Equals [!Ref pStepFunctionsRoleArn, ""]]
+  cNoPrimaryKeyArn: !Equals [!Ref pPrimaryKeyArn, ""]
+  cHasPrimaryKeyArn: !Not [!Condition cNoPrimaryKeyArn]
+
+Resources:
+  rEncryptionKey:
+    Type: "AWS::KMS::Key"
+    Condition: cNoPrimaryKeyArn
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: F19
+            reason: "Disabling KMS key rotation"
+    Properties:
+      Description: !Sub "${AWS::StackName} - Encryption Key"
+      Enabled: true
+      EnableKeyRotation: false
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnforceIdentityPerimeter
+            Effect: Deny
+            Principal: "*"
+            Action: "kms:*"
+            Resource: "*"
+            Condition:
+              StringNotEqualsIfExists:
+                "aws:PrincipalAccount": !Ref "AWS::AccountId"
+              BoolIfExists:
+                "aws:PrincipalIsAWSService": "false"
+          - Sid: EnforceNetworkPerimeter
+            Effect: Deny
+            Principal: "*"
+            Action: "kms:*"
+            Resource: "*"
+            Condition:
+              StringNotEqualsIfExists:
+                "aws:SourceVpc": !Ref pVpcId
+                "aws:PrincipalTag/network-perimeter-exception": "true"
+              BoolIfExists:
+                "aws:PrincipalIsAWSService": "false"
+                "aws:ViaAWSService": "false"
+              ArnNotLikeIfExists:
+                "aws:PrincipalArn": !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/*"
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            NotAction: "kms:Decrypt"
+            Resource: "*"
+          - Sid: "Allow access for Key Administrators"
+            Effect: Allow
+            Principal:
+              AWS: !If
+                - cHasStepFunctionsRoleArn
+                - !Ref pStepFunctionsRoleArn
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            Action:
+              - "kms:GetKeyPolicy"
+              - "kms:PutKeyPolicy"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "kms:CallerAccount": !Ref "AWS::AccountId"
+                "kms:ViaService": !Sub "states.${AWS::Region}.amazonaws.com"
+          - Sid: AllowEncryptByLambda
+            Effect: Allow
+            Principal:
+              AWS: !If
+                - cHasApiFunctionRoleArn
+                - !Ref pApiFunctionRoleArn
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            Action: "kms:GenerateDataKeyPairWithoutPlaintext"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "kms:CallerAccount": !Ref "AWS::AccountId"
+                "kms:DataKeyPairSpec": ECC_NIST_P384
+              ArnEquals: !If
+                - cHasApiFunctionArn
+                - "lambda:SourceFunctionArn": !Ref pApiFunctionArn
+                - !Ref "AWS::NoValue"
+          - Sid: AllowDecryptByEnclave
+            Effect: Allow
+            Principal:
+              AWS: !If
+                - cHasInstanceRoleArn
+                - !Ref pInstanceRoleArn
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            Action: "kms:Decrypt"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "kms:CallerAccount": !Ref "AWS::AccountId"
+      KeySpec: SYMMETRIC_DEFAULT
+      KeyUsage: ENCRYPT_DECRYPT
+      MultiRegion: true
+      PendingWindowInDays: 7
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rEncryptionKey
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rReplicaEncryptionKey:
+    Type: "AWS::KMS::ReplicaKey"
+    Condition: cHasPrimaryKeyArn
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Properties:
+      Description: !Sub "${AWS::StackName} - Replica Encryption Key"
+      Enabled: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnforceIdentityPerimeter
+            Effect: Deny
+            Principal: "*"
+            Action: "kms:*"
+            Resource: "*"
+            Condition:
+              StringNotEqualsIfExists:
+                "aws:PrincipalAccount": !Ref "AWS::AccountId"
+              BoolIfExists:
+                "aws:PrincipalIsAWSService": "false"
+          - Sid: EnforceNetworkPerimeter
+            Effect: Deny
+            Principal: "*"
+            Action: "kms:*"
+            Resource: "*"
+            Condition:
+              StringNotEqualsIfExists:
+                "aws:SourceVpc": !Ref pVpcId
+                "aws:PrincipalTag/network-perimeter-exception": "true"
+              BoolIfExists:
+                "aws:PrincipalIsAWSService": "false"
+                "aws:ViaAWSService": "false"
+              ArnNotLikeIfExists:
+                "aws:PrincipalArn": !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/*"
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            NotAction: "kms:Decrypt"
+            Resource: "*"
+          - Sid: "Allow access for Key Administrators"
+            Effect: Allow
+            Principal:
+              AWS: !If
+                - cHasStepFunctionsRoleArn
+                - !Ref pStepFunctionsRoleArn
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            Action:
+              - "kms:GetKeyPolicy"
+              - "kms:PutKeyPolicy"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "kms:CallerAccount": !Ref "AWS::AccountId"
+                "kms:ViaService": !Sub "states.${AWS::Region}.amazonaws.com"
+          - Sid: AllowEncryptByLambda
+            Effect: Allow
+            Principal:
+              AWS: !If
+                - cHasApiFunctionRoleArn
+                - !Ref pApiFunctionRoleArn
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            Action: "kms:GenerateDataKeyPairWithoutPlaintext"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "kms:CallerAccount": !Ref "AWS::AccountId"
+                "kms:DataKeyPairSpec": ECC_NIST_P384
+              ArnEquals: !If
+                - cHasApiFunctionArn
+                - "lambda:SourceFunctionArn": !Ref pApiFunctionArn
+                - !Ref "AWS::NoValue"
+          - Sid: AllowDecryptByEnclave
+            Effect: Allow
+            Principal:
+              AWS: !If
+                - cHasInstanceRoleArn
+                - !Ref pInstanceRoleArn
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            Action: "kms:Decrypt"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "kms:CallerAccount": !Ref "AWS::AccountId"
+      PendingWindowInDays: 7
+      PrimaryKeyArn: !Ref pPrimaryKeyArn
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rReplicaEncryptionKey
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rEncryptionKeyAlias:
+    Type: "AWS::KMS::Alias"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Properties:
+      AliasName: !Sub "alias/${AWS::StackName}"
+      TargetKeyId: !If
+        - cHasPrimaryKeyArn
+        - !Ref rReplicaEncryptionKey
+        - !Ref rEncryptionKey
+
+Outputs:
+  oEncryptionKeyArn:
+    Description: Encryption Key ARN
+    Condition: cNoPrimaryKeyArn
+    Value: !GetAtt rEncryptionKey.Arn
+  oReplicaEncryptionKeyArn:
+    Description: Replica Encryption Key ARN
+    Condition: cHasPrimaryKeyArn
+    Value: !GetAtt rReplicaEncryptionKey.Arn

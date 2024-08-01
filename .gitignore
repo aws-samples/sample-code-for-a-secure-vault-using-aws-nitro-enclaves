@@ -1,0 +1,12 @@
+.aws-sam
+.venv
+.idea
+.DS_Store
+target
+samconfig.toml
+*.eif
+*.pem
+*.bkp
+*.xlsx
+site
+.env

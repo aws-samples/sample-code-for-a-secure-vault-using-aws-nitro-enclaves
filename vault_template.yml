@@ -1,0 +1,806 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Nitro Enclaves Vault - EC2
+
+Parameters:
+  pVpcId:
+    Type: "AWS::EC2::VPC::Id"
+    Description: VPC ID
+  pSubnetIds:
+    Type: "List<AWS::EC2::Subnet::Id>"
+    Description: Subnet IDs to launch instances
+  pVpcCidr:
+    Type: String
+    Description: VPC CIDR
+  pParentBucketName:
+    Type: String
+    Description: Parent S3 Bucket
+  pParentObjectKey:
+    Type: String
+    Description: Parent S3 Object Key
+  pEnclaveBucketName:
+    Type: String
+    Description: Enclave S3 Bucket
+  pEnclaveObjectKey:
+    Type: String
+    Description: Enclave S3 Object Key
+  pHostedZoneId:
+    Type: "AWS::Route53::HostedZone::Id"
+    Description: Hosted Zone ID
+  pDomainName:
+    Type: String
+    Description: Domain name for vault API
+  pInstanceRoleName:
+    Type: String
+    Description: Instance Role Name
+
+Resources:
+  rCertificate:
+    Type: "AWS::CertificateManager::Certificate"
+    Properties:
+      DomainName: !Ref pDomainName
+      DomainValidationOptions:
+        - DomainName: !Ref pDomainName
+          HostedZoneId: !Ref pHostedZoneId
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rCertificate
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+      ValidationMethod: DNS
+
+  rLoadBalancerSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Nitro Vault Load Balancer
+      VpcId: !Ref pVpcId
+
+  rLoadBalancerSecurityGroupIngress:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    Properties:
+      CidrIp: !Ref pVpcCidr
+      Description: Allow HTTPS traffic from VPC
+      FromPort: 443
+      GroupId: !Ref rLoadBalancerSecurityGroup
+      IpProtocol: tcp
+      ToPort: 443
+
+  rLoadBalancerSecurityGroupEgress:
+    Type: "AWS::EC2::SecurityGroupEgress"
+    Properties:
+      Description: Allow HTTPS traffic to Instances
+      DestinationSecurityGroupId: !Ref rInstanceSecurityGroup
+      FromPort: 443
+      GroupId: !Ref rLoadBalancerSecurityGroup
+      IpProtocol: tcp
+      ToPort: 443
+
+  rInstanceSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Nitro Vault Instances
+      VpcId: !Ref pVpcId
+
+  rInstanceSecurityGroupIngress:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    Properties:
+      Description: Allow HTTPS from Load Balancer
+      FromPort: 443
+      GroupId: !Ref rInstanceSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref rLoadBalancerSecurityGroup
+      ToPort: 443
+
+  rInstanceSecurityGroupEgress:
+    Type: "AWS::EC2::SecurityGroupEgress"
+    Properties:
+      CidrIp: "0.0.0.0/0"  # Required for access to IAM until a v1.3.0+ version of aws-nitro-enclaves-acm is released
+      Description: Allow HTTPS to anywhere
+      FromPort: 443
+      GroupId: !Ref rInstanceSecurityGroup
+      IpProtocol: tcp
+      ToPort: 443
+
+  rEnclaveCertificateIamRoleAssociation:
+    Type: "AWS::EC2::EnclaveCertificateIamRoleAssociation"
+    Properties:
+      CertificateArn: !Ref rCertificate
+      RoleArn: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/vault/${pInstanceRoleName}"
+
+  rInstancePolicy:
+    Type: "AWS::IAM::Policy"
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W12
+            reason: "Ignoring star in policy"
+    Properties:
+      PolicyName: InstancePolicy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "s3:GetObject"
+            Resource:
+              - !Sub "arn:${AWS::Partition}:s3:::${pParentBucketName}/${pParentObjectKey}"
+              - !Sub "arn:${AWS::Partition}:s3:::${pEnclaveBucketName}/${pEnclaveObjectKey}"
+          - Effect: Allow
+            Action:
+              - "cloudformation:DescribeStackResource"
+              - "cloudformation:SignalResource"
+            Resource: !Ref "AWS::StackId"
+      Roles:
+        - !Ref pInstanceRoleName
+
+  rInstanceEnclavePolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: EnclavePolicy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "s3:GetObject"
+            Resource: !Sub "arn:${AWS::Partition}:s3:::${rEnclaveCertificateIamRoleAssociation.CertificateS3BucketName}/${rEnclaveCertificateIamRoleAssociation.CertificateS3ObjectKey}"
+          - Effect: Allow
+            Action: "kms:Decrypt"
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:*:key/${rEnclaveCertificateIamRoleAssociation.EncryptionKmsKeyId}"
+          - Effect: Allow
+            Action: "iam:GetRole"
+            Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/vault/${pInstanceRoleName}"
+      Roles:
+        - !Ref pInstanceRoleName
+
+  rInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Roles:
+        - !Ref pInstanceRoleName
+
+  rLaunchTemplate:
+    Type: "AWS::EC2::LaunchTemplate"
+    DependsOn:
+      - rInstancePolicy
+      - rInstanceEnclavePolicy
+    Metadata:
+      "AWS::CloudFormation::Init":
+        config:
+          packages:
+            yum:
+              "aws-nitro-enclaves-cli": []
+              "aws-nitro-enclaves-acm": []
+              "amazon-cloudwatch-agent": []
+              "amazon-ssm-agent": []
+              "openssl-pkcs11":
+                - "0.4.11-8.amzn2023.0.3" # downgrade due to https://github.com/aws/aws-nitro-enclaves-acm/issues/124#issuecomment-1811727731
+              "nginx": []
+              "unzip": []
+          files:
+            "/etc/systemd/system/nitro-enclaves-acm.service.d/proxy.conf":
+              content: !Sub |-
+                [Service]
+                Environment="HTTPS_PROXY=http://placeholder:8080/"
+                Environment="NO_PROXY=.s3.${AWS::Region}.amazonaws.com,kms.${AWS::Region}.amazonaws.com,iam.amazonaws.com"
+              owner: root
+              group: root
+              mode: "000644"
+            "/etc/nitro_enclaves/vsock-proxy.yaml":
+              content: !Sub |-
+                allowlist:
+                - {address: kms.${AWS::Region}.amazonaws.com, port: 443}
+                - {address: kms-fips.${AWS::Region}.amazonaws.com, port: 443}
+              owner: root
+              group: root
+              mode: "000644"
+            "/etc/nitro_enclaves/allocator.yaml":
+              content: |-
+                ---
+                # Enclave configuration file.
+                #
+                # How much memory to allocate for enclaves (in MiB).
+                memory_mib: 4096
+                #
+                # How many CPUs to reserve for enclaves.
+                cpu_count: 6
+                #
+                # Alternatively, the exact CPUs to be reserved for the enclave can be explicitly
+                # configured by using `cpu_pool` (like below), instead of `cpu_count`.
+                # Note: cpu_count and cpu_pool conflict with each other. Only use exactly one of them.
+                # Example of reserving CPUs 2, 3, and 6 through 9:
+                # cpu_pool: 2,3,6-9
+              owner: root
+              group: root
+              mode: "000644"
+            "/etc/systemd/system/nitro-vault-server.service":
+              content: !Sub |-
+                [Unit]
+                Description=Nitro Enclaves Vault Server
+                After=nitro-enclaves-acm.service
+                DefaultDependencies=no
+                Requires=nitro-enclaves-allocator.service
+
+                [Service]
+                Type=simple
+                ExecStart=/home/ec2-user/parent-vault --host 127.0.0.1 --role "${pInstanceRoleName}"
+                Restart=always
+
+                [Install]
+                WantedBy=multi-user.target
+              owner: root
+              group: root
+              mode: "000644"
+            "/etc/nitro_enclaves/acm.yaml":
+              content: !Sub |-
+                # Copyright 2020-2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+                # SPDX-License-Identifier: Apache-2.0
+                ---
+                # Enclave general configuration
+                enclave:
+                  # Number of vCPUs to be assigned to the enclave
+                  cpu_count: 2
+                  # Memory (in MiB) to be assigned to the enclave
+                  memory_mib: 256
+
+                # General options
+                options:
+                  # If NGINX is not running, force restart it
+                  nginx_force_start: true
+
+                  # The NGINX reload timeout period (milliseconds)
+                  nginx_reload_wait_ms: 1000
+
+                  # Certificate renewal check period (seconds)
+                  sync_interval_secs: 600
+
+                # Tokens general configuration
+                tokens:
+                  # A label for this PKCS#11 token
+                  - label: nginx-acm-token
+                    # Configure a managed token, sourced from an ACM certificate.
+                    source:
+                      Acm:
+                        # The certificate ARN
+                        # Note: this certificate must have been associated with the
+                        #       IAM role assigned to the instance on which ACM for
+                        #       Nitro Enclaves is run.
+                        certificate_arn: "${rCertificate}"
+                    target:
+                      NginxStanza:
+                        # Path to the nginx stanza to be written by the ACM service whenever
+                        # the certificate configuration changes (e.g. after a certificate renewal).
+                        # This file must be included from the main nginx config `server` section,
+                        # as it will contain the TLS nginx configuration directives.
+                        path: /etc/pki/nginx/nginx-acm.conf
+                        # Stanza file owner (i.e. the user nginx is configured to run as).
+                        user: nginx
+                    # Attestation period (seconds)
+                    refresh_interval_secs: 43200
+              owner: root
+              group: root
+              mode: "000644"
+            "/etc/nginx/nginx.conf":
+              content: !Sub |-
+                # For more information on configuration, see:
+                #   * Official English Documentation: http://nginx.org/en/docs/
+                #   * Official Russian Documentation: http://nginx.org/ru/docs/
+
+                user nginx;
+                worker_processes auto;
+                error_log /var/log/nginx/error.log notice;
+                pid /run/nginx.pid;
+                ssl_engine pkcs11;
+
+                # Load dynamic modules. See /usr/share/doc/nginx/README.dynamic.
+                include /usr/share/nginx/modules/*.conf;
+
+                events {
+                    worker_connections 1024;
+                }
+
+                http {
+                    log_format json_combined escape=json
+                    '{'
+                      '"time":"$time_iso8601",'
+                      '"process":"$pid",'
+                      '"filename":"$request_filename",'
+                      '"remoteIP":"$remote_addr",'
+                      '"method":"$request_method",'
+                      '"request":"$request_uri",'
+                      '"status":"$status",'
+                      '"responseTime":"$request_time",'
+                      '"referer":"$http_referer",'
+                      '"userAgent":"$http_user_agent",'
+                      '"bytesSent":"$bytes_sent",'
+                      '"bytesReceived":"$request_length",'
+                      '"host":"$host",'
+                      '"connection_requests":"$connection_requests",'
+                      '"connection_active":"$connections_active",'
+                      '"connection_read":"$connections_reading",'
+                      '"connection_write":"$connections_writing",'
+                      '"connection_wait":"$connections_waiting"'
+                    '}';
+
+                    access_log  /var/log/nginx/access.log  json_combined;
+                    charset utf-8;
+
+                    sendfile            on;
+                    tcp_nopush          on;
+                    keepalive_timeout   65;
+                    types_hash_max_size 4096;
+
+                    include             /etc/nginx/mime.types;
+                    default_type        application/octet-stream;
+
+                    # Load modular configuration files from the /etc/nginx/conf.d directory.
+                    # See http://nginx.org/en/docs/ngx_core_module.html#include
+                    # for more information.
+                    include /etc/nginx/conf.d/*.conf;
+
+                    server {
+                        listen       443 ssl http2;
+                        listen       [::]:443 ssl http2;
+                        server_name  ${pDomainName};
+                        root         /usr/share/nginx/html;
+
+                        ssl_protocols TLSv1.2;
+                        ssl_session_cache shared:SSL:1m;
+                        ssl_session_timeout 10m;
+                        ssl_prefer_server_ciphers on;
+
+                        # Set this to the stanza path configured in /etc/nitro_enclaves/acm.yaml
+                        include "/etc/pki/nginx/nginx-acm.conf";
+
+                        location / {
+                            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                            proxy_set_header X-Forwarded-Proto https;
+                            proxy_set_header X-Forwarded-Port 443;
+                            proxy_set_header Proxy "";
+
+                            proxy_pass http://127.0.0.1:8080;
+                            proxy_buffering on;
+                            proxy_redirect off;
+                            proxy_http_version 1.1;
+                        }
+
+                        error_page 404 /404.html;
+                            location = /404.html {
+                        }
+
+                        error_page 500 502 503 504 /50x.html;
+                            location = /50x.html {
+                        }
+                    }
+                }
+              owner: root
+              group: root
+              mode: "000644"
+            "/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json":
+              content: |-
+                {
+                  "agent": {
+                    "metrics_collection_interval": 60,
+                    "run_as_user": "cwagent",
+                    "debug": false
+                  },
+                  "logs": {
+                    "logs_collected": {
+                      "files": {
+                        "collect_list": [
+                          {
+                            "file_path": "/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log",
+                            "log_group_name": "linux/aws/cwagent",
+                            "log_stream_name": "{instance_id}",
+                            "retention_in_days": 7
+                          },
+                          {
+                            "file_path": "/var/log/audit/audit.log",
+                            "log_group_name": "linux/var/log/audit",
+                            "log_stream_name": "{instance_id}",
+                            "retention_in_days": 7
+                          },
+                          {
+                            "file_path": "/var/log/nitro_enclaves/nitro_enclaves.log",
+                            "log_group_name": "linux/var/log/nitro_enclaves",
+                            "log_stream_name": "{instance_id}",
+                            "retention_in_days": 7
+                          },
+                          {
+                            "file_path": "/var/log/nginx/access.log",
+                            "log_group_name": "/cw-monitoring-framework/nginx/access",
+                            "log_stream_name": "{instance_id}",
+                            "retention_in_days": 7
+                          },
+                          {
+                            "file_path": "/var/log/nginx/error.log",
+                            "log_group_name": "/cw-monitoring-framework/nginx/error",
+                            "log_stream_name": "{instance_id}",
+                            "retention_in_days": 7
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "metrics": {
+                    "append_dimensions": {
+                      "AutoScalingGroupName": "${aws:AutoScalingGroupName}",
+                      "InstanceId": "${aws:InstanceId}"
+                    },
+                    "metrics_collected": {
+                      "procstat": [
+                        {
+                          "exe": "amazon-cloudwatch-agent",
+                          "measurement": [
+                            "cpu_usage",
+                            "memory_rss",
+                            "memory_vms",
+                            "read_bytes",
+                            "write_bytes",
+                            "read_count",
+                            "write_count"
+                          ]
+                        },
+                        {
+                          "exe": "nginx",
+                          "measurement": [
+                            "cpu_usage",
+                            "memory_rss",
+                            "memory_vms",
+                            "read_bytes",
+                            "write_bytes",
+                            "read_count",
+                            "write_count"
+                          ]
+                        }
+                      ],
+                      "cpu": {
+                        "measurement": [
+                          "cpu_usage_idle",
+                          "cpu_usage_iowait",
+                          "cpu_usage_user",
+                          "cpu_usage_system"
+                        ],
+                        "metrics_collection_interval": 60,
+                        "totalcpu": true
+                      },
+                      "disk": {
+                        "measurement": ["used_percent", "inodes_free"],
+                        "drop_device": true,
+                        "metrics_collection_interval": 60,
+                        "resources": ["*"]
+                      },
+                      "diskio": {
+                        "measurement": [
+                          "io_time",
+                          "write_bytes",
+                          "read_bytes",
+                          "writes",
+                          "reads"
+                        ],
+                        "metrics_collection_interval": 60,
+                        "resources": ["*"]
+                      },
+                      "mem": {
+                        "measurement": ["mem_used_percent"],
+                        "metrics_collection_interval": 60
+                      },
+                      "netstat": {
+                        "measurement": ["tcp_established", "tcp_time_wait"],
+                        "metrics_collection_interval": 60
+                      },
+                      "swap": {
+                        "measurement": ["swap_used_percent"],
+                        "metrics_collection_interval": 60
+                      }
+                    }
+                  },
+                  "traces": {
+                    "traces_collected": {
+                      "app_signals": {}
+                    }
+                  }
+                }
+              owner: root
+              group: root
+              mode: "000644"
+          services:
+            systemd:
+              "nitro-enclaves-allocator.service":
+                enabled: true
+                ensureRunning: true
+                files:
+                  - "/etc/nitro_enclaves/allocator.yaml"
+                packages:
+                  yum:
+                    - aws-nitro-enclaves-cli
+              "nitro-enclaves-vsock-proxy.service":
+                enabled: true
+                ensureRunning: true
+                files:
+                  - "/etc/nitro_enclaves/vsock-proxy.yaml"
+                packages:
+                  yum:
+                    - aws-nitro-enclaves-cli
+              "nitro-enclaves-acm.service":
+                enabled: true
+                ensureRunning: true
+                files:
+                  - "/etc/nitro_enclaves/acm.yaml"
+                packages:
+                  yum:
+                    - aws-nitro-enclaves-acm
+              "amazon-cloudwatch-agent.service":
+                enabled: true
+                ensureRunning: true
+                files:
+                  - "/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json"
+                packages:
+                  yum:
+                    - amazon-cloudwatch-agent
+              "amazon-ssm-agent.service":
+                enabled: true
+                ensureRunning: true
+                files:
+                  - "/etc/amazon/ssm/amazon-ssm-agent.json"
+                packages:
+                  yum:
+                    - amazon-ssm-agent
+    Properties:
+      LaunchTemplateData:
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              DeleteOnTermination: true
+              VolumeSize: 20 # GB
+              VolumeType: gp3
+        EbsOptimized: true
+        EnclaveOptions:
+          Enabled: true
+        IamInstanceProfile:
+          Arn: !GetAtt rInstanceProfile.Arn
+        InstanceInitiatedShutdownBehavior: terminate
+        InstanceRequirements:
+          AcceleratorCount:
+            Max: 0 # exclude accelerator instances (GPUs, FPGAs, Inferentia)
+          BareMetal: excluded
+          BurstablePerformance: excluded
+          CpuManufacturers:
+            - intel
+            - amd
+          ExcludedInstanceTypes:
+            - "a1*"
+            - "c6g*"
+            - "c7*"
+            - "m6g*"
+            - "m7*"
+            - "r6g*"
+            - "r7*"
+            - "r8*"
+            - "u*"
+            - "vt*"
+            - "g*"
+            - "hpc*"
+            - "t*"
+          InstanceGenerations:
+            - current
+          MemoryMiB:
+            Min: 8192
+          VCpuCount:
+            Min: 8
+        ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-default-x86_64}}"
+        MetadataOptions:
+          HttpEndpoint: enabled
+          HttpPutResponseHopLimit: 1
+          HttpTokens: required
+          InstanceMetadataTags: enabled
+        NetworkInterfaces:
+          - DeleteOnTermination: true
+            AssociatePublicIpAddress: false
+            DeviceIndex: 0
+            Groups:
+              - !Ref rInstanceSecurityGroup
+        PrivateDnsNameOptions:
+          EnableResourceNameDnsARecord: true
+          HostnameType: resource-name
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: nitro-vault
+              - Key: InstanceRoleArn
+                Value: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/vault/${pInstanceRoleName}"
+              - Key: CW-Dashboard
+                Value: Nginx
+              - Key: AppManagerCFNStackKey
+                Value: !Ref "AWS::StackName"
+        UserData:
+          "Fn::Base64": !Sub |-
+            #!/bin/bash -xe
+
+            exec > >(tee /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 2>&1
+
+            dnf install -y amazon-ssm-agent aws-cfn-bootstrap
+            systemctl enable --now amazon-ssm-agent.service
+
+            /opt/aws/bin/cfn-init -v --stack "${AWS::StackName}" --resource rLaunchTemplate --region ${AWS::Region} --role "${pInstanceRoleName}"
+
+            usermod -aG ne ec2-user
+
+            systemctl enable --now amazon-cloudwatch-agent.service
+            systemctl enable --now nitro-enclaves-allocator.service
+            systemctl enable --now nitro-enclaves-vsock-proxy.service
+            systemctl enable --now nitro-enclaves-acm.service
+
+            echo "Downloading enclave from S3..."
+            aws s3 cp s3://${pEnclaveBucketName}/${pEnclaveObjectKey} enclave.zip --no-progress
+            unzip -j enclave.zip "enclave-vault.eif" -d /home/ec2-user/
+            chown ec2-user:ec2-user /home/ec2-user/enclave-vault.eif
+
+            aws s3 cp s3://${pParentBucketName}/${pParentObjectKey} parent.zip --no-progress
+            unzip -j parent.zip "parent-vault" -d /home/ec2-user/
+            chown ec2-user:ec2-user /home/ec2-user/parent-vault
+
+            systemctl enable --now nitro-vault-server.service
+
+            /opt/aws/bin/cfn-signal -e $? --stack "${AWS::StackName}" --resource rAutoScalingGroup --region ${AWS::Region} --role "${pInstanceRoleName}"
+            echo "Done!"
+      TagSpecifications:
+        - ResourceType: launch-template
+          Tags:
+            - Key: Name
+              Value: Nitro Enclave Vault
+            - Key: "aws-cloudformation:stack-name"
+              Value: !Ref "AWS::StackName"
+            - Key: "aws-cloudformation:stack-id"
+              Value: !Ref "AWS::StackId"
+            - Key: "aws-cloudformation:logical-id"
+              Value: rLaunchTemplate
+            - Key: AppManagerCFNStackKey
+              Value: !Ref "AWS::StackName"
+      VersionDescription: "Nitro Enclaves Launch Template"
+
+  rAutoScalingGroup:
+    Type: "AWS::AutoScaling::AutoScalingGroup"
+    CreationPolicy:
+      AutoScalingCreationPolicy:
+        MinSuccessfulInstancesPercent: 100
+      ResourceSignal:
+        Count: 1
+        Timeout: PT5M
+    UpdatePolicy:
+      AutoScalingScheduledAction:
+        IgnoreUnmodifiedGroupSizeProperties: true
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 1
+        MaxBatchSize: 2
+        PauseTime: PT5M
+        WaitOnResourceSignals: true
+        SuspendProcesses:
+          - HealthCheck
+          - ReplaceUnhealthy
+          - AZRebalance
+          - AlarmNotification
+          - ScheduledActions
+    Properties:
+      CapacityRebalance: true
+      Cooldown: 0  # zero seconds
+      DefaultInstanceWarmup: 10  # seconds
+      DesiredCapacity: 1
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 10  # seconds
+      MaxInstanceLifetime: 86400  # recycle instances every day (in seconds)
+      MaxSize: 2
+      MinSize: 1
+      MixedInstancesPolicy:
+        InstancesDistribution:
+          OnDemandAllocationStrategy: lowest-price
+          OnDemandBaseCapacity: 1
+          OnDemandPercentageAboveBaseCapacity: 0
+          SpotAllocationStrategy: price-capacity-optimized
+        LaunchTemplate:
+          LaunchTemplateSpecification:
+            LaunchTemplateId: !Ref rLaunchTemplate
+            Version: !GetAtt rLaunchTemplate.LatestVersionNumber
+      NewInstancesProtectedFromScaleIn: false
+      TargetGroupARNs:
+        - !Ref rTargetGroup
+      TerminationPolicies:
+        - OldestInstance
+        - OldestLaunchConfiguration
+      VPCZoneIdentifier: !Ref pSubnetIds
+
+  rLoadBalancer:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W52
+            reason: "Ignoring access logging"
+    Properties:
+      IpAddressType: ipv4
+      LoadBalancerAttributes:
+        - Key: load_balancing.cross_zone.enabled
+          Value: "false"
+        - Key: dns_record.client_routing_policy
+          Value: availability_zone_affinity
+      Scheme: internal
+      SecurityGroups:
+        - !Ref rLoadBalancerSecurityGroup
+      Subnets: !Ref pSubnetIds
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rLoadBalancer
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+      Type: network
+
+  rTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 5
+      HealthCheckPort: 443
+      HealthCheckProtocol: TCP
+      HealthCheckTimeoutSeconds: 2
+      HealthyThresholdCount: 2
+      IpAddressType: ipv4
+      Port: 443
+      Protocol: TCP
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rTargetGroup
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: "0"
+        - Key: deregistration_delay.connection_termination.enabled
+          Value: "true"
+        - Key: preserve_client_ip.enabled
+          Value: "true"
+      TargetType: instance
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref pVpcId
+
+  rLoadBalancerListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref rTargetGroup
+      LoadBalancerArn: !Ref rLoadBalancer
+      Port: 443
+      Protocol: TCP
+
+  rLoadBalancerRecordSet:
+    Type: "AWS::Route53::RecordSet"
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt rLoadBalancer.DNSName
+        EvaluateTargetHealth: true
+        HostedZoneId: !GetAtt rLoadBalancer.CanonicalHostedZoneID
+      HostedZoneId: !Ref pHostedZoneId
+      Name: !Ref pDomainName
+      Type: A
+
+Outputs:
+  oLoadBalancerDnsName:
+    Description: Load Balancer DNS Name
+    Value: !GetAtt rLoadBalancer.DNSName
+  oAutoScalingGroupName:
+    Description: Auto Scaling Group Name
+    Value: !Ref rAutoScalingGroup

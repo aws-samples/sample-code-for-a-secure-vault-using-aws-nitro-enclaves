@@ -1,0 +1,674 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Nitro Enclaves Vault - VPC
+
+Parameters:
+  pDomainName:
+    Type: String
+    Description: Domain name for vault API
+  pResourcePrefix:
+    Type: String
+    Description: VPC Resource Prefix
+    Default: nitro-vault
+  pCidrBlock:
+    Type: String
+    Description: VPC CIDR Block
+    Default: 10.0.0.0/16
+  pEnableNatGateways:
+    Type: String
+    Description: Enable NAT Gateways (required)
+    Default: "true"
+    AllowedValues:
+      - "true" # required until an aws-nitro-enclaves-acm release with https://github.com/aws/aws-nitro-enclaves-acm/pull/130
+      # - "false"
+  pEnableRemoteAccess:
+    Type: String
+    Description: Enable Remote Access through SSM (optional)
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+  pEnableDnsFirewall:
+    Type: String
+    Description: Enable Route 53 Resolver DNS Firewall (optional)
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
+
+Metadata:
+  "AWS::CloudFormation::Interface":
+    ParameterGroups:
+      - Label:
+          default: VPC Configuration
+        Parameters:
+          - pResourcePrefix
+          - pCidrBlock
+          - pEnableDnsFirewall
+      - Label:
+          default: Network Configuration
+        Parameters:
+          - pEnableNatGateways
+          - pDomainName
+      - Label:
+          default: Remote Access Configuration
+        Parameters:
+          - pEnableRemoteAccess
+
+Conditions:
+  cUseNatGateways: !Equals [!Ref pEnableNatGateways, "true"]
+  cEnableRemoteAccess: !Equals [!Ref pEnableRemoteAccess, "true"]
+  cEnableDnsFirewall: !Equals [!Ref pEnableDnsFirewall, "true"]
+
+Resources:
+  rVpc:
+    Type: "AWS::EC2::VPC"
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W60
+            reason: "Ignoring vpc flow logs"
+    Properties:
+      CidrBlock: !Ref pCidrBlock
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${pResourcePrefix}-vpc"
+
+  rPrivateSubnet1:  # Lambda Subnet
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Select [0, !Cidr [!Ref pCidrBlock, 6, 8]]  # /24
+      MapPublicIpOnLaunch: false
+      PrivateDnsNameOptionsOnLaunch:
+        EnableResourceNameDnsAAAARecord: false
+        EnableResourceNameDnsARecord: true
+        HostnameType: resource-name
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - "${pResourcePrefix}-subnet-private1-${AvailabilityZone}"
+            - AvailabilityZone: !Select [0, !GetAZs ""]
+      VpcId: !Ref rVpc
+
+  rPrivateSubnet2:  # Lambda Subnet
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Select [1, !Cidr [!Ref pCidrBlock, 6, 8]]  # /24
+      MapPublicIpOnLaunch: false
+      PrivateDnsNameOptionsOnLaunch:
+        EnableResourceNameDnsAAAARecord: false
+        EnableResourceNameDnsARecord: true
+        HostnameType: resource-name
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - "${pResourcePrefix}-subnet-private2-${AvailabilityZone}"
+            - AvailabilityZone: !Select [1, !GetAZs ""]
+      VpcId: !Ref rVpc
+
+  rPrivateSubnet3:  # EC2 Subnet
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Select [4, !Cidr [!Ref pCidrBlock, 6, 8]]  # /24
+      MapPublicIpOnLaunch: false
+      PrivateDnsNameOptionsOnLaunch:
+        EnableResourceNameDnsAAAARecord: false
+        EnableResourceNameDnsARecord: true
+        HostnameType: resource-name
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - "${pResourcePrefix}-subnet-private3-${AvailabilityZone}"
+            - AvailabilityZone: !Select [0, !GetAZs ""]
+      VpcId: !Ref rVpc
+
+  rPrivateSubnet4:  # EC2 Subnet
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Select [5, !Cidr [!Ref pCidrBlock, 6, 8]]  # /24
+      MapPublicIpOnLaunch: false
+      PrivateDnsNameOptionsOnLaunch:
+        EnableResourceNameDnsAAAARecord: false
+        EnableResourceNameDnsARecord: true
+        HostnameType: resource-name
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - "${pResourcePrefix}-subnet-private4-${AvailabilityZone}"
+            - AvailabilityZone: !Select [1, !GetAZs ""]
+      VpcId: !Ref rVpc
+
+  rPrivateRouteTable1:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref rVpc
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - "${pResourcePrefix}-rtb-private1-${AvailabilityZone}"
+            - AvailabilityZone: !Select [0, !GetAZs ""]
+
+  rPrivateRouteTable2:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref rVpc
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - "${pResourcePrefix}-rtb-private2-${AvailabilityZone}"
+            - AvailabilityZone: !Select [1, !GetAZs ""]
+
+  rPrivateRouteTable3:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref rVpc
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - "${pResourcePrefix}-rtb-private3-${AvailabilityZone}"
+            - AvailabilityZone: !Select [0, !GetAZs ""]
+
+  rPrivateRouteTable4:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref rVpc
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - "${pResourcePrefix}-rtb-private4-${AvailabilityZone}"
+            - AvailabilityZone: !Select [1, !GetAZs ""]
+
+  rPrivateRouteTableAssociation1:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref rPrivateSubnet1
+      RouteTableId: !Ref rPrivateRouteTable1
+
+  rPrivateRouteTableAssociation2:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref rPrivateSubnet2
+      RouteTableId: !Ref rPrivateRouteTable2
+
+  rPrivateRouteTableAssociation3:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref rPrivateSubnet3
+      RouteTableId: !Ref rPrivateRouteTable3
+
+  rPrivateRouteTableAssociation4:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref rPrivateSubnet4
+      RouteTableId: !Ref rPrivateRouteTable4
+
+  rInternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+    Condition: cUseNatGateways
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${pResourcePrefix}-igw"
+
+  rInternetGatewayAttachment:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Condition: cUseNatGateways
+    Properties:
+      InternetGatewayId: !Ref rInternetGateway
+      VpcId: !Ref rVpc
+
+  rEIP1:
+    Type: "AWS::EC2::EIP"
+    Condition: cUseNatGateways
+    DependsOn: rInternetGatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - "${pResourcePrefix}-eip-${AvailabilityZone}"
+            - AvailabilityZone: !Select [0, !GetAZs ""]
+
+  rEIP2:
+    Type: "AWS::EC2::EIP"
+    Condition: cUseNatGateways
+    DependsOn: rInternetGatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - "${pResourcePrefix}-eip-${AvailabilityZone}"
+            - AvailabilityZone: !Select [1, !GetAZs ""]
+
+  rPublicSubnet1:
+    Type: "AWS::EC2::Subnet"
+    Condition: cUseNatGateways
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Select [2, !Cidr [!Ref pCidrBlock, 6, 8]]  # /24
+      MapPublicIpOnLaunch: false
+      PrivateDnsNameOptionsOnLaunch:
+        EnableResourceNameDnsAAAARecord: false
+        EnableResourceNameDnsARecord: true
+        HostnameType: resource-name
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - "${pResourcePrefix}-subnet-public1-${AvailabilityZone}"
+            - AvailabilityZone: !Select [0, !GetAZs ""]
+      VpcId: !Ref rVpc
+
+  rPublicSubnet2:
+    Type: "AWS::EC2::Subnet"
+    Condition: cUseNatGateways
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Select [3, !Cidr [!Ref pCidrBlock, 6, 8]]  # /24
+      MapPublicIpOnLaunch: false
+      PrivateDnsNameOptionsOnLaunch:
+        EnableResourceNameDnsAAAARecord: false
+        EnableResourceNameDnsARecord: true
+        HostnameType: resource-name
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - "${pResourcePrefix}-subnet-public2-${AvailabilityZone}"
+            - AvailabilityZone: !Select [1, !GetAZs ""]
+      VpcId: !Ref rVpc
+
+  rPublicRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Condition: cUseNatGateways
+    Properties:
+      VpcId: !Ref rVpc
+      Tags:
+        - Key: Name
+          Value: !Sub "${pResourcePrefix}-rtb-public"
+
+  rPublicRouteTableAssociation1:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Condition: cUseNatGateways
+    Properties:
+      SubnetId: !Ref rPublicSubnet1
+      RouteTableId: !Ref rPublicRouteTable
+
+  rPublicRouteTableAssociation2:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Condition: cUseNatGateways
+    Properties:
+      SubnetId: !Ref rPublicSubnet2
+      RouteTableId: !Ref rPublicRouteTable
+
+  rNatGateway1:
+    Type: "AWS::EC2::NatGateway"
+    Condition: cUseNatGateways
+    Properties:
+      AllocationId: !GetAtt rEIP1.AllocationId
+      SubnetId: !Ref rPublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub "${pResourcePrefix}-nat-public1-${rPublicSubnet1.AvailabilityZone}"
+
+  rNatGateway2:
+    Type: "AWS::EC2::NatGateway"
+    Condition: cUseNatGateways
+    Properties:
+      AllocationId: !GetAtt rEIP2.AllocationId
+      SubnetId: !Ref rPublicSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub "${pResourcePrefix}-nat-public2-${rPublicSubnet2.AvailabilityZone}"
+
+  rPublicDefaultRouteIPv4:
+    Type: "AWS::EC2::Route"
+    Condition: cUseNatGateways
+    DependsOn: rInternetGatewayAttachment
+    Properties:
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref rInternetGateway
+      RouteTableId: !Ref rPublicRouteTable
+
+  rPrivateDefaultRouteIPv43:
+    Type: "AWS::EC2::Route"
+    Condition: cUseNatGateways
+    Properties:
+      DestinationCidrBlock: "0.0.0.0/0"
+      NatGatewayId: !Ref rNatGateway1
+      RouteTableId: !Ref rPrivateRouteTable3  # EC2 Route Table
+
+  rPrivateDefaultRouteIPv44:
+    Type: "AWS::EC2::Route"
+    Condition: cUseNatGateways
+    Properties:
+      DestinationCidrBlock: "0.0.0.0/0"
+      NatGatewayId: !Ref rNatGateway2
+      RouteTableId: !Ref rPrivateRouteTable4  # EC2 Route Table
+
+  rVpcEndpointSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: VPC Endpoint Security Group
+      SecurityGroupEgress:
+        - CidrIp: "127.0.0.1/32"
+          Description: Deny outbound traffic
+          IpProtocol: -1
+      SecurityGroupIngress:
+        - CidrIp: !GetAtt rVpc.CidrBlock
+          Description: Allow HTTPS traffic from the VPC
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+      VpcId: !Ref rVpc
+
+  rVpcEndpointS3:
+    Type: "AWS::EC2::VPCEndpoint"
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowRequestsToAWSOwnedResources
+            Effect: Allow
+            Principal:
+              AWS: "*"
+            Action: "s3:GetObject"
+            Resource:
+              - !Sub "arn:${AWS::Partition}:s3:::al2023-repos-${AWS::Region}-de612dc2/*"
+              - !Sub "arn:${AWS::Partition}:s3:::al2023-${AWS::Region}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::aws-ssm-${AWS::Region}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::amazon-ssm-${AWS::Region}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::amazon-ssm-packages-${AWS::Region}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${AWS::Region}-birdwatcher-prod/*"
+              - !Sub "arn:${AWS::Partition}:s3:::aws-ssm-distributor-file-${AWS::Region}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::aws-ssm-document-attachments-${AWS::Region}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::patch-baseline-snapshot-${AWS::Region}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::aws-patchmanager-macos-${AWS::Region}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::amazoncloudwatch-agent-${AWS::Region}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::amazoncloudwatch-agent/*"
+              - !Sub "arn:${AWS::Partition}:s3:::prod-${AWS::Region}-starport-layer-bucket/*"
+              - !Sub "arn:${AWS::Partition}:s3:::cloudformation-waitcondition-${AWS::Region}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::aws-ec2-enclave-certificate-${AWS::Region}-prod/*"
+          - Sid: AllowRequestsByAccountIdentitiesToAccountResources
+            Effect: Allow
+            Principal:
+              AWS: "*"
+            Action: "s3:GetObject"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "aws:PrincipalAccount": !Ref "AWS::AccountId"
+                "aws:ResourceAccount": !Ref "AWS::AccountId"
+      RouteTableIds:
+        - !Ref rPrivateRouteTable3  # EC2 Route Table
+        - !Ref rPrivateRouteTable4  # EC2 Route Table
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+      VpcEndpointType: Gateway
+      VpcId: !Ref rVpc
+
+  rVpcEndpointDynamoDB:
+    Type: "AWS::EC2::VPCEndpoint"
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowRequestsByAccountIdentitiesToAccountResources
+            Effect: Allow
+            Principal:
+              AWS: "*"
+            Action: "dynamodb:*"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "aws:PrincipalAccount": !Ref "AWS::AccountId"
+                "aws:ResourceAccount": !Ref "AWS::AccountId"
+      RouteTableIds:
+        - !Ref rPrivateRouteTable1  # Lambda Route Table
+        - !Ref rPrivateRouteTable2  # Lambda Route Table
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.dynamodb"
+      VpcEndpointType: Gateway
+      VpcId: !Ref rVpc
+
+  rVpcEndpointKms:
+    Type: "AWS::EC2::VPCEndpoint"
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: "*"
+            Action:
+              - "kms:Decrypt"
+              - "kms:GenerateDataKeyPairWithoutPlaintext"
+            Resource: "*"
+          - Sid: DenyRequestsByThirdPartyIdentities
+            Effect: Deny
+            Principal: "*"
+            Action: "*"
+            Resource: "*"
+            Condition:
+              StringNotEquals:
+                "aws:PrincipalAccount": !Ref "AWS::AccountId"
+                # cannot use aws:ResourceAccount here due to retrieving the ACM key
+      PrivateDnsEnabled: true
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.kms"
+      SecurityGroupIds:
+        - !Ref rVpcEndpointSecurityGroup
+      SubnetIds:
+        - !Ref rPrivateSubnet1  # Lambda Subnet AZ1
+        - !Ref rPrivateSubnet2  # Lambda Subnet AZ2
+      VpcEndpointType: Interface
+      VpcId: !Ref rVpc
+
+  rVpcEndpointSsm:
+    Type: "AWS::EC2::VPCEndpoint"
+    Condition: cEnableRemoteAccess
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: "ssm:*"
+            Resource: "*"
+          - Sid: DenyRequestsByThirdPartyIdentities
+            Effect: Deny
+            Principal: "*"
+            Action: "*"
+            Resource: "*"
+            Condition:
+              StringNotEquals:
+                "aws:PrincipalAccount": !Ref "AWS::AccountId"
+      PrivateDnsEnabled: true
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ssm"
+      SecurityGroupIds:
+        - !Ref rVpcEndpointSecurityGroup
+      SubnetIds:
+        - !Ref rPrivateSubnet3  # EC2 Subnet AZ1
+        - !Ref rPrivateSubnet4  # EC2 Subnet AZ2
+      VpcEndpointType: Interface
+      VpcId: !Ref rVpc
+
+  rVpcEndpointSsmMessages:
+    Type: "AWS::EC2::VPCEndpoint"
+    Condition: cEnableRemoteAccess
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: "ssmmessages:*"
+            Resource: "*"
+          - Sid: DenyRequestsByThirdPartyIdentities
+            Effect: Deny
+            Principal: "*"
+            Action: "*"
+            Resource: "*"
+            Condition:
+              StringNotEquals:
+                "aws:PrincipalAccount": !Ref "AWS::AccountId"
+      PrivateDnsEnabled: true
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ssmmessages"
+      SecurityGroupIds:
+        - !Ref rVpcEndpointSecurityGroup
+      SubnetIds:
+        - !Ref rPrivateSubnet3  # EC2 Subnet AZ1
+        - !Ref rPrivateSubnet4  # EC2 Subnet AZ2
+      VpcEndpointType: Interface
+      VpcId: !Ref rVpc
+
+  rVpcEndpointEc2Messages:
+    Type: "AWS::EC2::VPCEndpoint"
+    Condition: cEnableRemoteAccess
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: "ec2messages:*"
+            Resource: "*"
+          - Sid: DenyRequestsByThirdPartyIdentities
+            Effect: Deny
+            Principal: "*"
+            Action: "*"
+            Resource: "*"
+            Condition:
+              StringNotEquals:
+                "aws:PrincipalAccount": !Ref "AWS::AccountId"
+      PrivateDnsEnabled: true
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ec2messages"
+      SecurityGroupIds:
+        - !Ref rVpcEndpointSecurityGroup
+      SubnetIds:
+        - !Ref rPrivateSubnet3  # EC2 Subnet AZ1
+        - !Ref rPrivateSubnet4  # EC2 Subnet AZ2
+      VpcEndpointType: Interface
+      VpcId: !Ref rVpc
+
+  rVpcEndpointCloudFormation:
+    Type: "AWS::EC2::VPCEndpoint"
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowRequestsByAccountIdentitiesToAccountResources
+            Effect: Allow
+            Principal:
+              AWS: "*"
+            Action:
+              - "cloudformation:DescribeStackResource"  # used by cfn-init
+              - "cloudformation:SignalResource"  # used by cfn-signal
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "aws:PrincipalAccount": !Ref "AWS::AccountId"
+                "aws:ResourceAccount": !Ref "AWS::AccountId"
+      PrivateDnsEnabled: true
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.cloudformation"
+      SecurityGroupIds:
+        - !Ref rVpcEndpointSecurityGroup
+      SubnetIds:
+        - !Ref rPrivateSubnet3  # EC2 Subnet AZ1
+        - !Ref rPrivateSubnet4  # EC2 Subnet AZ2
+      VpcEndpointType: Interface
+      VpcId: !Ref rVpc
+
+  rAllDomainsList:
+    Type: "AWS::Route53Resolver::FirewallDomainList"
+    Condition: cEnableDnsFirewall
+    Properties:
+      Domains:
+        - "*"
+      Name: !Sub "${pResourcePrefix}-AllDomains"
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rAllDomainsList
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rAllowDomainsList:
+    Type: "AWS::Route53Resolver::FirewallDomainList"
+    Condition: cEnableDnsFirewall
+    Properties:
+      Domains:
+        - !Ref pDomainName
+        - !Sub "*.${AWS::URLSuffix}"
+      Name: !Sub "${pResourcePrefix}-AllowDomains"
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rAllowDomainsList
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rWalledGardenRuleGroup:
+    Type: "AWS::Route53Resolver::FirewallRuleGroup"
+    Condition: cEnableDnsFirewall
+    Properties:
+      FirewallRules:
+        - Action: ALLOW
+          FirewallDomainListId: !Ref rAllowDomainsList
+          Priority: 1
+        - Action: BLOCK
+          BlockResponse: NODATA
+          FirewallDomainListId: !Ref rAllDomainsList
+          Priority: 2
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rWalledGardenRuleGroup
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rFirewallRuleGroupAssociation:
+    Type: "AWS::Route53Resolver::FirewallRuleGroupAssociation"
+    Condition: cEnableDnsFirewall
+    Properties:
+      FirewallRuleGroupId: !Ref rWalledGardenRuleGroup
+      MutationProtection: DISABLED  # Prevents deletion when enabled
+      Priority: 101
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rFirewallRuleGroupAssociation
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+      VpcId: !Ref rVpc
+
+Outputs:
+  oVpcId:
+    Description: VPC ID
+    Value: !Ref rVpc
+  oVpcCidrBlock:
+    Description: VPC CIDR block
+    Value: !GetAtt rVpc.CidrBlock
+  oApiSubnetIds:
+    Description: API Subnet IDs
+    Value: !Join [",", [!Ref rPrivateSubnet1, !Ref rPrivateSubnet2]]
+  oInstanceSubnetIds:
+    Description: EC2 Instance Subnet IDs
+    Value: !Join [",", [!Ref rPrivateSubnet3, !Ref rPrivateSubnet4]]

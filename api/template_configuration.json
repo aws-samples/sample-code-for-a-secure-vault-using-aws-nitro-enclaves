@@ -1,0 +1,26 @@
+{
+  "Tags": {
+    "AppManagerCFNStackKey": "nitro-vault-ci-api"
+  },
+  "StackPolicy": {
+    "Statement": [
+      {
+        "Effect": "Deny",
+        "Action": "Update:Replace",
+        "Principal": "*",
+        "Resource": "*",
+        "Condition": {
+          "StringEquals": {
+            "ResourceType": ["AWS::DynamoDB::GlobalTable"]
+          }
+        }
+      },
+      {
+        "Effect": "Allow",
+        "Action": "Update:*",
+        "Principal": "*",
+        "Resource": "*"
+      }
+    ]
+  }
+}

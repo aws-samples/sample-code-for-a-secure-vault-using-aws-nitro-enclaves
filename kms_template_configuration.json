@@ -1,0 +1,26 @@
+{
+  "Tags": {
+    "AppManagerCFNStackKey": "nitro-vault-key"
+  },
+  "StackPolicy": {
+    "Statement": [
+      {
+        "Effect": "Deny",
+        "Action": "Update:Replace",
+        "Principal": "*",
+        "Resource": "*",
+        "Condition": {
+          "StringEquals": {
+            "ResourceType": ["AWS::KMS::Key", "AWS::KMS::ReplicaKey"]
+          }
+        }
+      },
+      {
+        "Effect": "Allow",
+        "Action": "Update:*",
+        "Principal": "*",
+        "Resource": "*"
+      }
+    ]
+  }
+}

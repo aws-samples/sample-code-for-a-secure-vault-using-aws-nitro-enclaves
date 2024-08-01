@@ -1,0 +1,34 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - git config --global advice.detachedHead false
+      - sudo dnf install --releasever=latest -y aws-nitro-enclaves-cli aws-nitro-enclaves-cli-devel
+  build:
+    commands:
+      - echo Build started on `date`
+      - cd enclave
+      - make build-docker
+      - echo Build completed on `date`
+  post_build:
+    commands:
+      - echo "${PRIVATE_KEY}" > nitro_vault_key.pem
+      - openssl req -new -key nitro_vault_key.pem -sha384 -nodes -subj "/CN=AWS/C=US/ST=WA/L=Seattle/O=Amazon/OU=AWS" -out nitro_vault_csr.pem
+      - openssl x509 -req -days 365 -in nitro_vault_csr.pem -out nitro_vault_cert.pem -sha384 -signkey nitro_vault_key.pem
+      - nitro-cli build-enclave --docker-uri "enclave-vault:latest" --output-file enclave-vault.eif --private-key nitro_vault_key.pem --signing-certificate nitro_vault_cert.pem > temp_measurements.json
+      - PCR3=$(python -c"import hashlib; h=hashlib.sha384(); h.update(b'\0'*48); h.update(\"${INSTANCE_ROLE_ARN}\".encode('utf-8')); print(h.hexdigest())")
+      - jq --arg PCR3 "$PCR3" '.Measurements += {"PCR3":$PCR3}' temp_measurements.json > measurements.json
+
+artifacts:
+  discard-paths: yes
+  files:
+    - enclave/enclave-vault.eif  # Used by Deploy:DeployVault
+    - enclave/measurements.json  # Used by Invoke:UpdateKeyPolicyAttestations
+    - vault_template.yml  # Used by Deploy:DeployVault
+    - vault_template_configuration.json  # Used by Deploy:DeployVault
+
+cache:
+  files:
+    - '/root/.cargo/registry/**/*'
+    - '/root/.docker/**/*'

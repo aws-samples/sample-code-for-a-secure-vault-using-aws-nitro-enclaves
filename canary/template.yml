@@ -1,0 +1,450 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: "AWS::Serverless-2016-10-31"
+Description: Nitro Enclaves Vault - Canary
+
+Parameters:
+  pVpcId:
+    Type: "AWS::EC2::VPC::Id"
+    Description: VPC ID
+  pSubnetIds:
+    Type: "List<AWS::EC2::Subnet::Id>"
+    Description: Subnet IDs for Lambda function
+  pEncryptionKeyArn:
+    Type: String
+    Description: Encryption Key ARN
+  pPermissionsBoundaryArn:
+    Type: String
+    Description: IAM Permissions Boundary Policy ARN
+  pCodeSigningConfigArn:
+    Type: String
+    Description: Code Signing Config ARN
+  pTableName:
+    Type: String
+    Description: DynamoDB Table Name
+  pEmailAddress:
+    Type: String
+    Description: Email Address for Notification
+    Default: ""
+
+Conditions:
+  cHasEmailAddress: !Not [!Equals [!Ref pEmailAddress, ""]]
+
+Globals:
+  Function:
+    Architectures:
+      - arm64
+    CodeUri: src/
+    Environment:
+      Variables:
+        AWS_STS_REGIONAL_ENDPOINTS: regional
+        POWERTOOLS_METRICS_NAMESPACE: NitroVault
+        TABLE_NAME: !Ref pTableName
+    Handler: app.lambda_handler.handler
+    Layers:
+      - !Ref rDependencyLayer
+    MemorySize: 128  # megabytes
+    PropagateTags: true
+    ReservedConcurrentExecutions: 1
+    Runtime: python3.12
+    Timeout: 1  # seconds
+
+Resources:
+  rLambdaSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Nitro Enclaves Vault Canary
+      SecurityGroupEgress:
+        - CidrIp: "0.0.0.0/0"  # Required for access to DynamoDB
+          Description: Allow HTTPS traffic to anywhere
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+      VpcId: !Ref pVpcId
+
+  rCanaryNoVpcFunctionLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: "Ignoring KMS key"
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${rCanaryNoVpcFunction}"
+      RetentionInDays: 3
+
+  rCanaryVpcFunctionLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: "Ignoring KMS key"
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${rCanaryVpcFunction}"
+      RetentionInDays: 3
+
+  rCanaryVpcFunctionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          Effect: Allow
+          Principal:
+            Service: !Sub "lambda.${AWS::URLSuffix}"
+          Action: "sts:AssumeRole"
+          Condition:
+            StringEquals:
+              "aws:SourceAccount": !Ref "AWS::AccountId"
+      Description: !Sub "DO NOT DELETE - Used by Lambda. Created by CloudFormation ${AWS::StackId}"
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaENIManagementAccess"
+      Path: "/vault/"
+      PermissionsBoundary: !Ref pPermissionsBoundaryArn
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rCanaryVpcFunctionRole
+
+  rCanaryNoVpcFunctionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          Effect: Allow
+          Principal:
+            Service: !Sub "lambda.${AWS::URLSuffix}"
+          Action: "sts:AssumeRole"
+          Condition:
+            StringEquals:
+              "aws:SourceAccount": !Ref "AWS::AccountId"
+      Description: !Sub "DO NOT DELETE - Used by Lambda. Created by CloudFormation ${AWS::StackId}"
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaENIManagementAccess"
+      Path: "/vault/"
+      PermissionsBoundary: !Ref pPermissionsBoundaryArn
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rCanaryNoVpcFunctionRole
+
+  rCanaryPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: CanaryPolicy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "kms:Decrypt"
+            Resource: !Ref pEncryptionKeyArn
+          - Effect: Allow
+            Action: "dynamodb:Scan"
+            Resource: !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${pTableName}"
+      Roles:
+        - !Ref rCanaryVpcFunctionRole
+        - !Ref rCanaryNoVpcFunctionRole
+
+  rCloudWatchPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: CloudWatchLogs
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource:
+              - !GetAtt rCanaryVpcFunctionLogGroup.Arn
+              - !GetAtt rCanaryNoVpcFunctionLogGroup.Arn
+      Roles:
+        - !Ref rCanaryVpcFunctionRole
+        - !Ref rCanaryNoVpcFunctionRole
+
+  # This policy explicitly denies the ability for the Lambda function to call
+  # these EC2 APIs, while still allowing the Lambda service to attach the
+  # function to the VPC using the attached AWSLambdaENIManagementAccess policy
+  # on the role.
+  #
+  # https://docs.aws.amazon.com/lambda/latest/dg/configuration-vpc.html#configuration-vpc-best-practice
+  rLambdaVpcDenyPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: DenyEC2Policy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Deny
+            Action:
+              - "ec2:CreateNetworkInterface"
+              - "ec2:DeleteNetworkInterface"
+              - "ec2:DescribeNetworkInterfaces"
+              - "ec2:DetachNetworkInterface"
+              - "ec2:AssignPrivateIpAddresses"
+              - "ec2:UnassignPrivateIpAddresses"
+            Resource: "*"
+            Condition:
+              ArnEquals:
+                "lambda:SourceFunctionArn":
+                  - !GetAtt rCanaryVpcFunction.Arn
+                  - !GetAtt rCanaryNoVpcFunction.Arn
+      Roles:
+        - !Ref rCanaryVpcFunctionRole
+        - !Ref rCanaryNoVpcFunctionRole
+
+  rEventBridgeSchedulerRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          Effect: Allow
+          Principal:
+            Service: !Sub "scheduler.${AWS::URLSuffix}"
+          Action: "sts:AssumeRole"
+          Condition:
+            StringEquals:
+              "aws:SourceAccount": !Ref "AWS::AccountId"
+              "aws:SourceArn": !Sub "arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule-group/default"
+      Description: !Sub "DO NOT DELETE - Used by EventBridge Scheduler. Created by CloudFormation ${AWS::StackId}"
+      Path: "/vault/"
+      PermissionsBoundary: !Ref pPermissionsBoundaryArn
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rEventBridgeSchedulerRole
+
+  rEventBridgeSchedulerPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: Lambda
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "lambda:InvokeFunction"
+            Resource:
+              - !GetAtt rCanaryVpcFunction.Arn
+              - !GetAtt rCanaryNoVpcFunction.Arn
+      Roles:
+        - !Ref rEventBridgeSchedulerRole
+
+  rDependencyLayer:
+    Type: "AWS::Serverless::LayerVersion"
+    Metadata:
+      BuildMethod: python3.12
+      BuildArchitecture: arm64
+    Properties:
+      LicenseInfo: MIT-0
+      CompatibleArchitectures:
+        - arm64
+      CompatibleRuntimes:
+        - python3.12
+      ContentUri: dependencies
+      Description: !Sub "DO NOT DELETE - ${AWS::StackName} - Python Dependencies"
+      RetentionPolicy: Delete
+
+  rCanaryVpcFunction:
+    Type: "AWS::Serverless::Function"
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: "Ignoring CloudWatch"
+          - id: W92
+            reason: "Ignoring Reserved Concurrency"
+    Properties:
+      CodeSigningConfigArn: !Ref pCodeSigningConfigArn
+      Description: !Sub "${AWS::StackName} - Canary (VPC)"
+      Environment:
+        Variables:
+          POWERTOOLS_SERVICE_NAME: canary_vpc
+      Events:
+        ScheduleEvent:
+          Type: ScheduleV2
+          Properties:
+            RoleArn: !GetAtt rEventBridgeSchedulerRole.Arn
+            ScheduleExpression: "rate(1 minute)"
+      Role: !GetAtt rCanaryVpcFunctionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref rLambdaSecurityGroup
+        SubnetIds: !Ref pSubnetIds
+
+  rCanaryNoVpcFunction:
+    Type: "AWS::Serverless::Function"
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: "Ignoring CloudWatch"
+          - id: W89
+            reason: "Ignoring VPC"
+          - id: W92
+            reason: "Ignoring Reserved Concurrency"
+    Properties:
+      CodeSigningConfigArn: !Ref pCodeSigningConfigArn
+      Description: !Sub "${AWS::StackName} - Canary (No VPC)"
+      Environment:
+        Variables:
+          POWERTOOLS_SERVICE_NAME: canary_no_vpc
+      Events:
+        ScheduleEvent:
+          Type: ScheduleV2
+          Properties:
+            RoleArn: !GetAtt rEventBridgeSchedulerRole.Arn
+            ScheduleExpression: "rate(1 minute)"
+      Role: !GetAtt rCanaryNoVpcFunctionRole.Arn
+
+  DecryptionVpcAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: !Sub "[KMS] Decryption succeeded from inside VPC (${pVpcId})"
+      AlarmActions:
+        - !Ref AlarmTopic
+      ComparisonOperator: GreaterThanThreshold
+      DatapointsToAlarm: 1
+      Dimensions:
+        - Name: service
+          Value: canary_vpc
+      EvaluationPeriods: 1
+      InsufficientDataActions:
+        - !Ref AlarmTopic
+      MetricName: DecryptSuccess
+      Namespace: NitroVault
+      OKActions:
+        - !Ref AlarmTopic
+      Period: 60  # seconds
+      Statistic: Average
+      Threshold: 0
+      TreatMissingData: notBreaching
+      Unit: Count
+
+  DecryptionNoVpcAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: !Sub "[KMS] Decryption succeeded from outside VPC (${pVpcId})"
+      AlarmActions:
+        - !Ref AlarmTopic
+      ComparisonOperator: GreaterThanThreshold
+      DatapointsToAlarm: 1
+      Dimensions:
+        - Name: service
+          Value: canary_no_vpc
+      EvaluationPeriods: 1
+      InsufficientDataActions:
+        - !Ref AlarmTopic
+      MetricName: DecryptSuccess
+      Namespace: NitroVault
+      OKActions:
+        - !Ref AlarmTopic
+      Period: 60  # seconds
+      Statistic: Average
+      Threshold: 0
+      TreatMissingData: notBreaching
+      Unit: Count
+
+  AlarmTopic:
+    Type: "AWS::SNS::Topic"
+    Properties: {}
+
+  AlarmTopicPolicy:
+    Type: "AWS::SNS::TopicPolicy"
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnforceIdentityPerimeter
+            Effect: Deny
+            Principal:
+              AWS: "*"
+            Action:
+              - "sns:AddPermission"
+              - "sns:DeleteTopic"
+              - "sns:GetDataProtectionPolicy"
+              - "sns:GetTopicAttributes"
+              - "sns:ListSubscriptionsByTopic"
+              - "sns:Publish"
+              - "sns:PutDataProtectionPolicy"
+              - "sns:RemovePermission"
+              - "sns:SetTopicAttributes"
+              - "sns:Subscribe"
+            Resource: !Ref AlarmTopic
+            Condition:
+              StringNotEqualsIfExists:
+                "aws:PrincipalAccount": !Ref "AWS::AccountId"
+              BoolIfExists:
+                "aws:PrincipalIsAWSService": "false"
+          - Sid: EnforceNetworkPerimeter
+            Effect: Deny
+            Principal:
+              AWS: "*"
+            Action:
+              - "sns:AddPermission"
+              - "sns:DeleteTopic"
+              - "sns:GetDataProtectionPolicy"
+              - "sns:GetTopicAttributes"
+              - "sns:ListSubscriptionsByTopic"
+              - "sns:Publish"
+              - "sns:PutDataProtectionPolicy"
+              - "sns:RemovePermission"
+              - "sns:SetTopicAttributes"
+              - "sns:Subscribe"
+            Resource: !Ref AlarmTopic
+            Condition:
+              StringNotEqualsIfExists:
+                "aws:SourceVpc": !Ref pVpcId
+                "aws:PrincipalTag/network-perimeter-exception": "true"
+              BoolIfExists:
+                "aws:PrincipalIsAWSService": "false"
+                "aws:ViaAWSService": "false"
+              ArnNotLikeIfExists:
+                "aws:PrincipalArn": !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/*"
+          - Sid: CloudWatchAlarm
+            Effect: Allow
+            Principal:
+              Service: !Sub "cloudwatch.${AWS::URLSuffix}"
+            Action: "sns:Publish"
+            Resource: !Ref AlarmTopic
+            Condition:
+              ArnEquals:
+                "aws:SourceArn":
+                  - !GetAtt DecryptionVpcAlarm.Arn
+                  - !GetAtt DecryptionNoVpcAlarm.Arn
+              StringEquals:
+                "aws:SourceAccount": !Ref "AWS::AccountId"
+      Topics:
+        - !Ref AlarmTopic
+
+  AlarmEmailSubscription:
+    Type: "AWS::SNS::Subscription"
+    Condition: cHasEmailAddress
+    Properties:
+      Endpoint: !Ref pEmailAddress
+      Protocol: email
+      TopicArn: !Ref AlarmTopic
+
+Outputs:
+  AlarmTopicArn:
+    Description: Alarm SNS Topic ARN
+    Value: !Ref AlarmTopic

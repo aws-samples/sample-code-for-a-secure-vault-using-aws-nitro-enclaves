@@ -1,0 +1,7 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "./parent/Cargo.toml",
+        "./enclave/Cargo.toml"
+    ],
+    "rust-analyzer.showUnlinkedFileNotification": false
+}

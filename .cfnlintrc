@@ -1,0 +1,9 @@
+templates:
+- ci_template.yml
+- kms_template.yml
+- vault_template.yml
+- vpc_template.yml
+- api/template.yml
+- canary/template.yml
+include_checks:
+- I

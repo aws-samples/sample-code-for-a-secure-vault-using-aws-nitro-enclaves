@@ -1,0 +1,1219 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Nitro Enclaves Vault - CI
+
+Parameters:
+  pVpcId:
+    Type: "AWS::EC2::VPC::Id"
+    Description: VPC ID
+  pVpcCidr:
+    Type: String
+    Description: VPC CIDR
+  pApiSubnetIds:
+    Type: "List<AWS::EC2::Subnet::Id>"
+    Description: Subnet IDs for Lambda function
+  pInstanceSubnetIds:
+    Type: "List<AWS::EC2::Subnet::Id>"
+    Description: Subnet IDs for EC2 instances
+  pEncryptionKeyArn:
+    Type: String
+    Description: Encryption Key ARN
+  pHostedZoneId:
+    Type: "AWS::Route53::HostedZone::Id"
+    Description: Hosted Zone ID
+  pDomainName:
+    Type: String
+    Description: Domain name for vault API
+  pRepositoryId:
+    Type: String
+    Description: GitHub Organization and Project to check out
+  pKmsCloudFormationStackName:
+    Type: String
+    Description: KMS CloudFormation Stack Name
+  pUseCodeBuildFleet:
+    Type: String
+    Description: "Whether to use CodeBuild Fleet or not"
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "false"
+
+Metadata:
+  "AWS::CloudFormation::Interface":
+    ParameterGroups:
+      - Label:
+          default: VPC Configuration
+        Parameters:
+          - pVpcId
+          - pVpcCidr
+          - pApiSubnetIds
+          - pInstanceSubnetIds
+      - Label:
+          default: Security Configuration
+        Parameters:
+          - pEncryptionKeyArn
+      - Label:
+          default: Certificate Configuration
+        Parameters:
+          - pHostedZoneId
+          - pDomainName
+      - Label:
+          default: Build Configuration
+        Parameters:
+          - pRepositoryId
+          - pUseCodeBuildFleet
+          - pKmsCloudFormationStackName
+
+Conditions:
+  cUseCodeBuildFleet: !Equals [!Ref pUseCodeBuildFleet, "true"]
+
+Resources:
+  rSigningProfile:
+    Type: "AWS::Signer::SigningProfile"
+    Properties:
+      PlatformId: AWSLambda-SHA384-ECDSA
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rSigningProfile
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rSigningProfilePermission:
+    Type: "AWS::Signer::ProfilePermission"
+    Properties:
+      Action: "signer:StartSigningJob"
+      Principal: !GetAtt rCodeBuildRole.Arn
+      ProfileName: !GetAtt rSigningProfile.ProfileName
+      StatementId: AllowCodeBuild
+
+  rCodeSigningConfig:
+    Type: "AWS::Lambda::CodeSigningConfig"
+    Properties:
+      Description: !Sub "Code signing for ${AWS::StackName}"
+      AllowedPublishers:
+        SigningProfileVersionArns:
+          - !GetAtt rSigningProfile.ProfileVersionArn
+      CodeSigningPolicies:
+        UntrustedArtifactOnDeployment: Enforce
+
+  rSigningSecret:
+    Type: "AWS::SecretsManager::Secret"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W77
+            reason: "Ignoring KMS"
+    Properties:
+      Description: !Sub "${AWS::StackName} Enclave Signing Secret"
+
+  rSigningSecretPolicy:
+    Type: "AWS::SecretsManager::ResourcePolicy"
+    Properties:
+      BlockPublicPolicy: true
+      ResourcePolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnforceIdentityPerimeter
+            Effect: Deny
+            Principal:
+              AWS: "*"
+            Action: "secretsmanager:*"
+            Resource: "*"
+            Condition:
+              StringNotEqualsIfExists:
+                "aws:PrincipalAccount": !Ref "AWS::AccountId"
+              BoolIfExists:
+                "aws:PrincipalIsAWSService": "false"
+          - Sid: EnforceNetworkPerimeter
+            Effect: Deny
+            Principal:
+              AWS: "*"
+            Action: "secretsmanager:*"
+            Resource: "*"
+            Condition:
+              StringNotEqualsIfExists:
+                "aws:SourceVpc": !Ref "pVpcId"
+                "aws:PrincipalTag/network-perimeter-exception": "true"
+              BoolIfExists:
+                "aws:PrincipalIsAWSService": "false"
+                "aws:ViaAWSService": "false"
+              ArnNotLikeIfExists:
+                "aws:PrincipalArn": !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/*"
+      SecretId: !Ref rSigningSecret
+
+  rArtifactBucket:
+    Type: "AWS::S3::Bucket"
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: RetainExceptOnCreate
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W35
+            reason: "Ignoring access logging"
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              KMSMasterKeyID: "alias/aws/s3"
+              SSEAlgorithm: "aws:kms"
+      LifecycleConfiguration:
+        Rules:
+          - ExpirationInDays: 3
+            Id: RetentionRule
+            Status: Enabled
+      ObjectLockEnabled: false
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  rArtifactBucketPolicy:
+    Type: "AWS::S3::BucketPolicy"
+    Properties:
+      Bucket: !Ref rArtifactBucket
+      PolicyDocument:
+        Statement:
+          - Sid: DenyUnEncryptedObjectUploads
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:PutObject"
+            Resource: !Sub "${rArtifactBucket.Arn}/*"
+            Condition:
+              StringNotEquals:
+                "s3:x-amz-server-side-encryption": "aws:kms"
+              BoolIfExists:
+                "aws:ViaAWSService": "false"  # required for Lambda code signing
+          - Sid: DenyInsecureConnections
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub "${rArtifactBucket.Arn}/*"
+              - !GetAtt rArtifactBucket.Arn
+            Condition:
+              Bool:
+                "aws:SecureTransport": false
+          - Sid: EnforceIdentityPerimeter
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub "${rArtifactBucket.Arn}/*"
+              - !GetAtt rArtifactBucket.Arn
+            Condition:
+              StringNotEqualsIfExists:
+                "aws:PrincipalAccount": !Ref "AWS::AccountId"
+              BoolIfExists:
+                "aws:PrincipalIsAWSService": "false"
+          - Sid: EnforceNetworkPerimeter
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub "${rArtifactBucket.Arn}/*"
+              - !GetAtt rArtifactBucket.Arn
+            Condition:
+              StringNotEqualsIfExists:
+                "aws:SourceVpc": !Ref pVpcId
+                "aws:PrincipalTag/network-perimeter-exception": "true"
+              BoolIfExists:
+                "aws:PrincipalIsAWSService": "false"
+                "aws:ViaAWSService": "false"
+              ArnNotLikeIfExists:
+                "aws:PrincipalArn": !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/*"
+
+  rCodeConnection:
+    Type: "AWS::CodeConnections::Connection"
+    Properties:
+      ConnectionName: !Sub "${AWS::StackName}-${AWS::Region}"
+      ProviderType: GitHub
+
+  rCodeBuildFleet:
+    Type: "AWS::CodeBuild::Fleet"
+    Condition: cUseCodeBuildFleet
+    Properties:
+      BaseCapacity: 2
+      ComputeType: BUILD_GENERAL1_SMALL
+      EnvironmentType: LINUX_CONTAINER
+
+  rPermissionsBoundary:
+    Type: "AWS::IAM::ManagedPolicy"
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: F5
+            reason: All actions allowed in boundary policy
+          - id: W13
+            reason: All resources allowed in boundary policy
+          - id: W28
+            reason: Boundary needs defined name to self reference
+    Properties:
+      Description: !Sub "DO NOT DELETE - Used by CloudFormation. Created by CloudFormation ${AWS::StackId}"
+      ManagedPolicyName: !Sub "${AWS::StackName}-boundary-${AWS::Region}"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowModifyIamRolesWithBoundary
+            Effect: Allow
+            Action:
+              - "iam:AttachRolePolicy"
+              - "iam:CreateRole"
+              - "iam:DeleteRolePolicy"
+              - "iam:DetachRolePolicy"
+              - "iam:PutRolePermissionsBoundary"
+              - "iam:PutRolePolicy"
+            Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/vault/*"
+            Condition:
+              ArnEquals:
+                "iam:PermissionsBoundary": !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${AWS::StackName}-boundary-${AWS::Region}" # references self
+          - Sid: AllowModifyIamRoles
+            Effect: Allow
+            Action:
+              - "iam:DeleteRole"
+              - "iam:GetRole"
+              - "iam:GetRolePolicy"
+              - "iam:PassRole"
+              - "iam:TagRole"
+              - "iam:UntagRole"
+              - "iam:UpdateAssumeRolePolicy"
+              - "iam:UpdateRole"
+              - "iam:UpdateRoleDescription"
+            Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/vault/*"
+          - Effect: Allow
+            Action: "cloudformation:CreateChangeSet"
+            Resource: !Sub "arn:${AWS::Partition}:cloudformation:*:aws:transform/Serverless-2016-10-31"
+          - Effect: Allow
+            Action: "ssm:GetParameters"
+            Resource: !Sub "arn:${AWS::Partition}:ssm:*::parameter/aws/*"
+          - Effect: Allow
+            Action:
+              - "route53:ChangeResourceRecordSets"
+              - "route53:GetHostedZone"
+              - "route53:ListResourceRecordSets"
+            Resource: !Sub "arn:${AWS::Partition}:route53:::hostedzone/${pHostedZoneId}"
+          - Effect: Allow
+            Action:
+              - "kms:GenerateDataKeyPairWithoutPlaintext"
+              - "kms:PutKeyPolicy"
+              - "kms:ScheduleKeyDeletion"
+            Resource: !Ref pEncryptionKeyArn
+          - Effect: Allow
+            Action: "lambda:CreateFunction"
+            Resource: "*"
+            Condition:
+              ArnEquals:
+                "lambda:CodeSigningConfigArn": !GetAtt rCodeSigningConfig.CodeSigningConfigArn
+          - Sid: OverlyPermissiveActions
+            Effect: Allow
+            Action:
+              - "acm:*"
+              - "apigateway:*"
+              - "application-autoscaling:*"
+              - "autoscaling:*"
+              - "cloudformation:DescribeStackResource"
+              - "cloudformation:SignalResource"
+              - "cloudwatch:DeleteAlarms"
+              - "cloudwatch:DescribeAlarms"
+              - "cloudwatch:PutMetricAlarm"
+              - "cloudwatch:PutMetricData"
+              - "cloudwatch:TagResource"
+              - "cloudwatch:UntagResource"
+              - "dynamodb:*"
+              - "ec2:AssignPrivateIpAddresses"
+              - "ec2:AssociateEnclaveCertificateIamRole"
+              - "ec2:AuthorizeSecurityGroupEgress"
+              - "ec2:AuthorizeSecurityGroupIngress"
+              - "ec2:CreateLaunchTemplate"
+              - "ec2:CreateLaunchTemplateVersion"
+              - "ec2:CreateNetworkInterface"
+              - "ec2:CreateSecurityGroup"
+              - "ec2:CreateTags"
+              - "ec2:DeleteNetworkInterface"
+              - "ec2:DeleteLaunchTemplate"
+              - "ec2:DeleteSecurityGroup"
+              - "ec2:DeleteTags"
+              - "ec2:Describe*"
+              - "ec2:DescribeNetworkInterfaces"
+              - "ec2:DetachNetworkInterface"
+              - "ec2:DisassociateEnclaveCertificateIamRole"
+              - "ec2:Get*"
+              - "ec2:RevokeSecurityGroupEgress"
+              - "ec2:RevokeSecurityGroupIngress"
+              - "ec2:RunInstances"
+              - "ec2:UnassignPrivateIpAddresses"
+              - "ec2messages:*"
+              - "elasticloadbalancing:*"
+              - "iam:CreateInstanceProfile"
+              - "iam:AddRoleToInstanceProfile"
+              - "iam:DeleteInstanceProfile"
+              - "iam:GetInstanceProfile"
+              - "iam:RemoveRoleFromInstanceProfile"
+              - "kms:Decrypt"
+              - "kms:DeleteAlias"
+              - "kms:DescribeKey"
+              - "lambda:*"
+              - "logs:*"
+              - "s3:GetObject"
+              - "scheduler:CreateSchedule"
+              - "scheduler:DeleteSchedule"
+              - "scheduler:GetSchedule"
+              - "scheduler:TagResource"
+              - "scheduler:UntagResource"
+              - "sns:CreateTopic"
+              - "sns:DeleteTopic"
+              - "sns:GetTopicAttributes"
+              - "sns:SetTopicAttributes"
+              - "sns:TagResource"
+              - "sns:UntagResource"
+              - "ssm:*"
+              - "ssmmessages:*"
+              - "route53:GetChange"
+              - "xray:PutTraceSegments"
+              - "xray:PutTelemetryRecords"
+              - "xray:GetSamplingRules"
+              - "xray:GetSamplingTargets"
+              - "xray:GetSamplingStatisticSummaries"
+            Resource: "*"
+
+  rInstanceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: !Sub "ec2.${AWS::URLSuffix}"
+            Action: "sts:AssumeRole"
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref "AWS::AccountId"
+      Description: !Sub "DO NOT DELETE - Used by EC2. Created by CloudFormation ${AWS::StackId}"
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore"
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy"
+      Path: "/vault/"
+      PermissionsBoundary: !Ref rPermissionsBoundary
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rInstanceRole
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rCloudFormationRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "cloudformation.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Description: !Sub "DO NOT DELETE - Used by CloudFormation. Created by CloudFormation ${AWS::StackId}"
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess" # limited by boundary
+      PermissionsBoundary: !Ref rPermissionsBoundary
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rCloudFormationRole
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+        - Key: network-perimeter-exception
+          Value: "true"
+
+  rCodePipelineRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: !Sub "codepipeline.${AWS::URLSuffix}"
+            Action: "sts:AssumeRole"
+      Description: !Sub "DO NOT DELETE - Used by CodePipeline. Created by CloudFormation ${AWS::StackId}"
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rCodePipelineRole
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+        - Key: network-perimeter-exception
+          Value: "true"
+
+  rCodePipelinePolicy:
+    Type: "AWS::IAM::Policy"
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W12
+            reason: "Ignoring star on ecr:GetAuthorizationToken"
+          - id: W76
+            reason: "Ignoring complex policy"
+    Properties:
+      PolicyName: CodePipelinePolicy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "s3:GetObject"
+              - "s3:GetObjectVersion"
+              - "s3:PutObject"
+              - "s3:PutObjectAcl"
+            Resource: !Sub "${rArtifactBucket.Arn}/*"
+          - Effect: Allow
+            Action:
+              - "codebuild:BatchGetBuilds"
+              - "codebuild:StartBuild"
+            Resource:
+              - !GetAtt rParentCodeBuildProject.Arn
+              - !GetAtt rEnclaveCodeBuildProject.Arn
+              - !GetAtt rApiCodeBuildProject.Arn
+              - !GetAtt rCanaryCodeBuildProject.Arn
+          - Effect: Allow
+            Action:
+              - "states:DescribeStateMachine"
+              - "states:StartExecution"
+            Resource: !Ref rKeyPolicyStateMachine
+          - Effect: Allow
+            Action: "states:DescribeExecution"
+            Resource: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:execution:${rKeyPolicyStateMachine.Name}:*"
+          - Effect: Allow
+            Action: "iam:PassRole"
+            Resource: !GetAtt rCloudFormationRole.Arn
+            Condition:
+              StringLike:
+                "iam:PassedToService": !Sub "cloudformation.${AWS::URLSuffix}"
+          - Effect: Allow
+            Action: "cloudformation:ValidateTemplate"
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - "cloudformation:ContinueUpdateRollback"
+              - "cloudformation:CreateChangeSet"
+              - "cloudformation:CreateStack"
+              - "cloudformation:DeleteStack"
+              - "cloudformation:RollbackStack"
+              - "cloudformation:UpdateStack"
+            Resource:
+              - !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}*"
+              - !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${pKmsCloudFormationStackName}*"
+            Condition:
+              ArnEquals:
+                "cloudformation:RoleArn": !GetAtt rCloudFormationRole.Arn
+          - Effect: Allow
+            Action:
+              - "cloudformation:CancelUpdateStack"
+              - "cloudformation:DeleteChangeSet"
+              - "cloudformation:DescribeStacks"
+              - "cloudformation:DescribeStackEvents"
+              - "cloudformation:DetectStackDrift"
+              - "cloudformation:DetectStackResourceDrift"
+              - "cloudformation:ExecuteChangeSet"
+              - "cloudformation:SetStackPolicy"
+              - "cloudformation:TagResource"
+              - "cloudformation:UntagResource"
+            Resource:
+              - !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}*"
+              - !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${pKmsCloudFormationStackName}*"
+          - Effect: Allow
+            Action: "codestar-connections:UseConnection"
+            Resource: !Ref rCodeConnection
+      Roles:
+        - !Ref rCodePipelineRole
+
+  rCodePipeline:
+    Type: "AWS::CodePipeline::Pipeline"
+    Properties:
+      ArtifactStore:
+        EncryptionKey:
+          Id: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
+          Type: KMS
+        Location: !Ref rArtifactBucket
+        Type: S3
+      PipelineType: V2
+      RestartExecutionOnUpdate: true
+      RoleArn: !GetAtt rCodePipelineRole.Arn
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Version: "1"
+                Provider: CodeStarSourceConnection
+              Configuration:
+                BranchName: main
+                ConnectionArn: !Ref rCodeConnection
+                DetectChanges: true
+                FullRepositoryId: !Ref pRepositoryId
+                OutputArtifactFormat: CODE_ZIP
+              OutputArtifacts:
+                - Name: SourceOutput
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: BuildParent
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref rParentCodeBuildProject
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: ParentBuildOutput
+              RunOrder: 1
+            - Name: BuildEnclave
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref rEnclaveCodeBuildProject
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: EnclaveBuildOutput
+              RunOrder: 1
+            - Name: BuildApi
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref rApiCodeBuildProject
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: ApiBuildOutput
+              RunOrder: 1
+            - Name: BuildCanary
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref rCanaryCodeBuildProject
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: CanaryBuildOutput
+              RunOrder: 1
+          OnFailure:
+            Result: ROLLBACK
+        - Name: Deploy
+          Actions:
+            - Name: DeployVault
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: "1"
+                Provider: CloudFormation
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                Capabilities: CAPABILITY_IAM
+                OutputFileName: VaultStackOutput.json
+                ParameterOverrides: !Sub
+                  - |-
+                    {
+                      "pVpcId": "${pVpcId}",
+                      "pVpcCidr": "${pVpcCidr}",
+                      "pSubnetIds": "${pSubnetIds}",
+                      "pHostedZoneId": "${pHostedZoneId}",
+                      "pDomainName": "${pDomainName}",
+                      "pInstanceRoleName": "${rInstanceRole}",
+                      "pParentBucketName": {
+                        "Fn::GetArtifactAtt": [
+                          "ParentBuildOutput",
+                          "BucketName"
+                        ]
+                      },
+                      "pParentObjectKey": {
+                        "Fn::GetArtifactAtt": [
+                          "ParentBuildOutput",
+                          "ObjectKey"
+                        ]
+                      },
+                      "pEnclaveBucketName": {
+                        "Fn::GetArtifactAtt": [
+                          "EnclaveBuildOutput",
+                          "BucketName"
+                        ]
+                      },
+                      "pEnclaveObjectKey": {
+                        "Fn::GetArtifactAtt": [
+                          "EnclaveBuildOutput",
+                          "ObjectKey"
+                        ]
+                      }
+                    }
+                  - pSubnetIds: !Join [",", !Ref pInstanceSubnetIds]
+                RoleArn: !GetAtt rCloudFormationRole.Arn
+                StackName: !Sub "${AWS::StackName}-vault"
+                TemplateConfiguration: "EnclaveBuildOutput::vault_template_configuration.json"
+                TemplatePath: "EnclaveBuildOutput::vault_template.yml"
+              InputArtifacts:
+                - Name: ParentBuildOutput
+                - Name: EnclaveBuildOutput
+              OutputArtifacts:
+                - Name: VaultDeployOutput
+              RunOrder: 1
+            - Name: DeployApi
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: "1"
+                Provider: CloudFormation
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND
+                OutputFileName: ApiStackOutput.json
+                ParameterOverrides: !Sub
+                  - |-
+                    {
+                      "pVpcId": "${pVpcId}",
+                      "pSubnetIds": "${pSubnetIds}",
+                      "pEncryptionKeyArn": "${pEncryptionKeyArn}",
+                      "pDomainName": "${pDomainName}",
+                      "pPermissionsBoundaryArn": "${rPermissionsBoundary}",
+                      "pCodeSigningConfigArn": "${rCodeSigningConfig.CodeSigningConfigArn}"
+                    }
+                  - pSubnetIds: !Join [",", !Ref pApiSubnetIds]
+                RoleArn: !GetAtt rCloudFormationRole.Arn
+                StackName: !Sub "${AWS::StackName}-api"
+                TemplateConfiguration: "ApiBuildOutput::template_configuration.json"
+                TemplatePath: "ApiBuildOutput::packaged.yml"
+              InputArtifacts:
+                - Name: ApiBuildOutput
+              OutputArtifacts:
+                - Name: ApiDeployOutput
+              RunOrder: 1
+            - Name: DeployCanary
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: "1"
+                Provider: CloudFormation
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND
+                OutputFileName: CanaryStackOutput.json
+                ParameterOverrides: !Sub
+                  - |-
+                    {
+                      "pVpcId": "${pVpcId}",
+                      "pSubnetIds": "${pSubnetIds}",
+                      "pEncryptionKeyArn": "${pEncryptionKeyArn}",
+                      "pPermissionsBoundaryArn": "${rPermissionsBoundary}",
+                      "pCodeSigningConfigArn": "${rCodeSigningConfig.CodeSigningConfigArn}",
+                      "pTableName": {
+                        "Fn::GetParam": ["ApiDeployOutput", "ApiStackOutput.json", "oTableName"]
+                      }
+                    }
+                  - pSubnetIds: !Join [",", !Ref pApiSubnetIds]
+                RoleArn: !GetAtt rCloudFormationRole.Arn
+                StackName: !Sub "${AWS::StackName}-canary"
+                TemplateConfiguration: "CanaryBuildOutput::template_configuration.json"
+                TemplatePath: "CanaryBuildOutput::packaged.yml"
+              InputArtifacts:
+                - Name: CanaryBuildOutput
+                - Name: ApiDeployOutput
+              OutputArtifacts:
+                - Name: CanaryDeployOutput
+              RunOrder: 2
+          OnFailure:
+            Result: ROLLBACK
+        - Name: UpdateKeyPolicy
+          Actions:
+            - Name: UpdateKeyPolicyRoles
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: "1"
+                Provider: CloudFormation
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                OutputFileName: KmsStackOutput.json
+                ParameterOverrides: !Sub |-
+                  {
+                    "pVpcId": "${pVpcId}",
+                    "pStepFunctionsRoleArn": "${rStepFunctionsRole.Arn}",
+                    "pInstanceRoleArn": "${rInstanceRole.Arn}",
+                    "pApiFunctionArn": {
+                      "Fn::GetParam": ["ApiDeployOutput", "ApiStackOutput.json", "oApiFunctionArn"]
+                    },
+                    "pApiFunctionRoleArn": {
+                      "Fn::GetParam": ["ApiDeployOutput", "ApiStackOutput.json", "oApiFunctionRoleArn"]
+                    }
+                  }
+                RoleArn: !GetAtt rCloudFormationRole.Arn
+                StackName: !Ref pKmsCloudFormationStackName
+                TemplateConfiguration: "SourceOutput::kms_template_configuration.json"
+                TemplatePath: "SourceOutput::kms_template.yml"
+              InputArtifacts:
+                - Name: SourceOutput
+                - Name: ApiDeployOutput
+              OutputArtifacts:
+                - Name: KmsDeployOutput
+              RunOrder: 1
+            - Name: UpdateKeyPolicyAttestations
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Version: "1"
+                Provider: StepFunctions
+              Configuration:
+                StateMachineArn: !Ref rKeyPolicyStateMachine
+                InputType: FilePath
+                Input: measurements.json
+              InputArtifacts:
+                - Name: EnclaveBuildOutput
+              OutputArtifacts:
+                - Name: KeyPolicyInvokeOutput
+              RunOrder: 2
+          OnFailure:
+            Result: ROLLBACK
+
+  rCodeBuildRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: !Sub "codebuild.${AWS::URLSuffix}"
+            Action: "sts:AssumeRole"
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref "AWS::AccountId"
+              ArnLike:
+                "aws:SourceArn": !Sub "arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:project/*"
+      Description: !Sub "DO NOT DELETE - Used by CodeBuild. Created by CloudFormation ${AWS::StackId}"
+      Policies:
+        - PolicyName: CodeBuildPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:GetObjectTagging"
+                  - "s3:GetObjectVersion"
+                  - "s3:PutObject"
+                  - "s3:PutObjectTagging"
+                  - "s3:PutObjectVersionTagging"
+                Resource: !Sub "${rArtifactBucket.Arn}/*"
+              - Effect: Allow
+                Action: "s3:ListBucket"  # required for Lambda code signing
+                Resource: !GetAtt rArtifactBucket.Arn
+              - Effect: Allow
+                Action: "secretsmanager:GetSecretValue"
+                Resource: !Ref rSigningSecret
+              - Effect: Allow
+                Action: "signer:StartSigningJob"
+                Resource: !Ref rSigningProfile
+              - Effect: Allow
+                Action: "signer:DescribeSigningJob"
+                Resource: !Sub "arn:${AWS::Partition}:signer:${AWS::Region}:${AWS::AccountId}:/signing-jobs/*"
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rCodeBuildRole
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+        - Key: network-perimeter-exception
+          Value: "true"
+
+  rCloudWatchLogsPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: CloudWatchLogs
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource:
+              - !GetAtt rParentCodeBuildLogGroup.Arn
+              - !GetAtt rEnclaveCodeBuildLogGroup.Arn
+              - !GetAtt rApiCodeBuildLogGroup.Arn
+              - !GetAtt rCanaryCodeBuildLogGroup.Arn
+      Roles:
+        - !Ref rCodeBuildRole
+
+  rEnclaveCodeBuildLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: "Ignoring KMS key"
+    Properties:
+      LogGroupName: !Sub "/aws/codebuild/${rEnclaveCodeBuildProject}"
+      RetentionInDays: 3
+
+  rParentCodeBuildLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: "Ignoring KMS key"
+    Properties:
+      LogGroupName: !Sub "/aws/codebuild/${rParentCodeBuildProject}"
+      RetentionInDays: 3
+
+  rApiCodeBuildLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: "Ignoring KMS key"
+    Properties:
+      LogGroupName: !Sub "/aws/codebuild/${rApiCodeBuildProject}"
+      RetentionInDays: 3
+
+  rCanaryCodeBuildLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: "Ignoring KMS key"
+    Properties:
+      LogGroupName: !Sub "/aws/codebuild/${rCanaryCodeBuildProject}"
+      RetentionInDays: 3
+
+  rParentCodeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Cache:
+        Type: LOCAL
+        Modes:
+          - LOCAL_SOURCE_CACHE
+          - LOCAL_DOCKER_LAYER_CACHE
+          - LOCAL_CUSTOM_CACHE
+      Description: Nitro Enclaves Vault - Parent
+      EncryptionKey: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+          - Name: ARCH
+            Type: PLAINTEXT
+            Value: x86_64
+        Fleet: !If
+          - cUseCodeBuildFleet
+          - FleetArn: !Ref rCodeBuildFleet
+          - !Ref "AWS::NoValue"
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        ImagePullCredentialsType: CODEBUILD
+        PrivilegedMode: true
+        Type: LINUX_CONTAINER
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+      QueuedTimeoutInMinutes: 5
+      ServiceRole: !GetAtt rCodeBuildRole.Arn
+      Source:
+        BuildSpec: parent/buildspec.yml
+        Type: CODEPIPELINE
+      SourceVersion: main
+      TimeoutInMinutes: 20
+
+  rEnclaveCodeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Cache:
+        Type: LOCAL
+        Modes:
+          - LOCAL_SOURCE_CACHE
+          - LOCAL_DOCKER_LAYER_CACHE
+          - LOCAL_CUSTOM_CACHE
+      Description: Nitro Enclaves Vault - Enclaves
+      EncryptionKey: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+          - Name: ARCH
+            Type: PLAINTEXT
+            Value: x86_64
+          - Name: INSTANCE_ROLE_ARN
+            Type: PLAINTEXT
+            Value: !GetAtt rInstanceRole.Arn
+          - Name: PRIVATE_KEY
+            Type: SECRETS_MANAGER
+            Value: !Ref rSigningSecret
+        Fleet: !If
+          - cUseCodeBuildFleet
+          - FleetArn: !Ref rCodeBuildFleet
+          - !Ref "AWS::NoValue"
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        ImagePullCredentialsType: CODEBUILD
+        PrivilegedMode: true
+        Type: LINUX_CONTAINER
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+      QueuedTimeoutInMinutes: 5
+      ServiceRole: !GetAtt rCodeBuildRole.Arn
+      Source:
+        BuildSpec: enclave/buildspec.yml
+        Type: CODEPIPELINE
+      SourceVersion: main
+      TimeoutInMinutes: 20
+
+  rApiCodeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Cache:
+        Type: S3
+        Location: !Sub "${rArtifactBucket}/cache"
+      Description: Nitro Enclaves Vault - API
+      EncryptionKey: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+          - Name: S3_BUCKET
+            Type: PLAINTEXT
+            Value: !Ref rArtifactBucket
+          - Name: SAM_CLI_TELEMETRY
+            Type: PLAINTEXT
+            Value: "0"
+          - Name: SIGNING_PROFILE
+            Type: PLAINTEXT
+            Value: !GetAtt rSigningProfile.ProfileName
+        Image: aws/codebuild/amazonlinux2-aarch64-standard:3.0
+        ImagePullCredentialsType: CODEBUILD
+        PrivilegedMode: false
+        Type: ARM_CONTAINER
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+      QueuedTimeoutInMinutes: 5
+      ServiceRole: !GetAtt rCodeBuildRole.Arn
+      Source:
+        BuildSpec: api/buildspec.yml
+        Type: CODEPIPELINE
+      SourceVersion: main
+      TimeoutInMinutes: 5
+
+  rCanaryCodeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Cache:
+        Type: S3
+        Location: !Sub "${rArtifactBucket}/cache"
+      Description: Nitro Enclaves Vault - Canary
+      EncryptionKey: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+          - Name: S3_BUCKET
+            Type: PLAINTEXT
+            Value: !Ref rArtifactBucket
+          - Name: SAM_CLI_TELEMETRY
+            Type: PLAINTEXT
+            Value: "0"
+          - Name: SIGNING_PROFILE
+            Type: PLAINTEXT
+            Value: !GetAtt rSigningProfile.ProfileName
+        Image: aws/codebuild/amazonlinux2-aarch64-standard:3.0
+        ImagePullCredentialsType: CODEBUILD
+        PrivilegedMode: false
+        Type: ARM_CONTAINER
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+      QueuedTimeoutInMinutes: 5
+      ServiceRole: !GetAtt rCodeBuildRole.Arn
+      Source:
+        BuildSpec: canary/buildspec.yml
+        Type: CODEPIPELINE
+      SourceVersion: main
+      TimeoutInMinutes: 5
+
+  rStepFunctionsRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: !Sub "states.${AWS::URLSuffix}"
+            Action: "sts:AssumeRole"
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref "AWS::AccountId"
+              ArnLike:
+                "aws:SourceArn": !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:*"
+      Description: !Sub "DO NOT DELETE - Used by Step Functions. Created by CloudFormation ${AWS::StackId}"
+      Policies:
+        - PolicyName: StepFunctionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "kms:GetKeyPolicy"
+                  - "kms:PutKeyPolicy"
+                Resource: !Ref pEncryptionKeyArn
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rStepFunctionsRole
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+        - Key: network-perimeter-exception
+          Value: "true"
+
+  rKeyPolicyStateMachine:
+    Type: "AWS::StepFunctions::StateMachine"
+    Properties:
+      Definition:
+        StartAt: BuildCondition
+        States:
+          BuildCondition:
+            Type: Pass
+            InputPath: "$.Measurements"
+            Parameters:
+              StringEqualsIgnoreCase:
+                "kms:RecipientAttestation:ImageSha384.$": "$.PCR0"
+                "kms:RecipientAttestation:PCR1.$": "$.PCR1"
+                "kms:RecipientAttestation:PCR2.$": "$.PCR2"
+                "kms:RecipientAttestation:PCR3.$": "$.PCR3"
+                "kms:RecipientAttestation:PCR8.$": "$.PCR8"
+            ResultPath: "$.BuildCondition.Condition"
+            Next: GetKeyPolicy
+          GetKeyPolicy:
+            Type: Task
+            Resource: "arn:aws:states:::aws-sdk:kms:getKeyPolicy"
+            Parameters:
+              KeyId: "${KeyArn}"
+              PolicyName: default
+            ResultSelector:
+              "Policy.$": "States.StringToJson($.Policy)"
+            ResultPath: "$.GetKeyPolicy"
+            Next: GetStatements
+          GetStatements:
+            Type: Pass
+            Parameters:
+              "Statement0.$": "$.GetKeyPolicy.Policy.Statement[0]" # Sid:"EnforceIdentityPerimeter"
+              "Statement1.$": "$.GetKeyPolicy.Policy.Statement[1]" # Sid:"EnforceNetworkPerimeter"
+              "Statement2.$": "$.GetKeyPolicy.Policy.Statement[2]" # Sid:"Enable IAM User Permissions"
+              "Statement3.$": "$.GetKeyPolicy.Policy.Statement[3]" # Sid:"Allow access for Key Administrators"
+              "Statement4.$": "$.GetKeyPolicy.Policy.Statement[4]" # Sid:"AllowEncryptByLambda"
+              "Statement5.$": "$.GetKeyPolicy.Policy.Statement[5]" # Sid:"AllowDecryptByEnclave"
+            ResultPath: "$.GetStatements"
+            Next: UpdateStatement
+          UpdateStatement:
+            Type: Pass
+            Parameters:
+              "Statement.$": "States.JsonMerge($.GetStatements.Statement5, $.BuildCondition, false)"
+            ResultPath: "$.UpdateStatement"
+            Next: UpdateStatements
+          UpdateStatements:
+            Type: Pass
+            Parameters:
+              "Statement.$": "States.Array($.GetStatements.Statement0, $.GetStatements.Statement1, $.GetStatements.Statement2, $.GetStatements.Statement3, $.GetStatements.Statement4, $.UpdateStatement.Statement)"
+            ResultPath: "$.UpdateStatements"
+            Next: UpdatePolicy
+          UpdatePolicy:
+            Type: Task
+            Resource: "arn:aws:states:::aws-sdk:kms:putKeyPolicy"
+            Parameters:
+              KeyId: "${KeyArn}"
+              "Policy.$": "States.JsonToString(States.JsonMerge($.GetKeyPolicy.Policy, $.UpdateStatements, false))"
+              PolicyName: default
+            End: true
+      DefinitionSubstitutions:
+        KeyArn: !Ref pEncryptionKeyArn
+      EncryptionConfiguration:
+        Type: AWS_OWNED_KEY
+      RoleArn: !GetAtt rStepFunctionsRole.Arn
+      StateMachineType: STANDARD  # Not using EXPRESS because if it's successfully started, the CodePipeline action is successful
+
+Outputs:
+  oCodePipelineName:
+    Description: CodePipeline Name
+    Value: !Ref rCodePipeline
+  oSigningSecretArn:
+    Description: Signing Secret ARN
+    Value: !Ref rSigningSecret
+  oArtifactBucketName:
+    Description: Artifact Bucket Name
+    Value: !Ref rArtifactBucket
+  oArtifactBucketArn:
+    Description: Artifact Bucket ARN
+    Value: !GetAtt rArtifactBucket.Arn
+  oArtifactBucketRegionalDomainName:
+    Description: Artifact Bucket Regional Domain Name
+    Value: !GetAtt rArtifactBucket.RegionalDomainName
+  oStepFunctionsRoleArn:
+    Description: Step Functions Role ARN
+    Value: !GetAtt rStepFunctionsRole.Arn
+  oInstanceRoleArn:
+    Description: Instance Role ARN
+    Value: !GetAtt rInstanceRole.Arn
