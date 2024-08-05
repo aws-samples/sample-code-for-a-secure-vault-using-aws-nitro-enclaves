@@ -9,23 +9,75 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      github-actions-dependencies:
+        applies-to: version-updates
+        update-types: [minor, patch]
+        patterns:
+          - "*"
 
   - package-ecosystem: "pip"
     directory: "/api"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      api-pip-dependencies:
+        applies-to: version-updates
+        update-types: [minor, patch]
+        patterns:
+          - "*"
 
   - package-ecosystem: "pip"
     directory: "/canary"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      canary-pip-dependencies:
+        applies-to: version-updates
+        update-types: [minor, patch]
+        patterns:
+          - "*"
 
   - package-ecosystem: "cargo"
     directory: "/parent"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      parent-cargo-dependencies:
+        applies-to: version-updates
+        update-types: [minor, patch]
+        patterns:
+          - "*"
 
   - package-ecosystem: "cargo"
     directory: "/enclave"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      enclave-cargo-dependencies:
+        applies-to: version-updates
+        update-types: [minor, patch]
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "cel-interpreter*"
