@@ -17,13 +17,6 @@ Parameters:
     Type: String
     Description: VPC CIDR Block
     Default: 10.0.0.0/16
-  pEnableNatGateways:
-    Type: String
-    Description: Enable NAT Gateways (required)
-    Default: "true"
-    AllowedValues:
-      - "true" # required until an aws-nitro-enclaves-acm release with https://github.com/aws/aws-nitro-enclaves-acm/pull/130
-      # - "false"
   pEnableRemoteAccess:
     Type: String
     Description: Enable Remote Access through SSM (optional)
@@ -51,7 +44,6 @@ Metadata:
       - Label:
           default: Network Configuration
         Parameters:
-          - pEnableNatGateways
           - pDomainName
       - Label:
           default: Remote Access Configuration
@@ -59,9 +51,14 @@ Metadata:
           - pEnableRemoteAccess
 
 Conditions:
-  cUseNatGateways: !Equals [!Ref pEnableNatGateways, "true"]
   cEnableRemoteAccess: !Equals [!Ref pEnableRemoteAccess, "true"]
   cEnableDnsFirewall: !Equals [!Ref pEnableDnsFirewall, "true"]
+  cNorthVirginiaRegion: !Equals [!Ref "AWS::Region", "us-east-1"]
+  cChinaPartition: !Equals [!Ref "AWS::URLSuffix", "amazonaws.com.cn"]
+  cIamVpceSupported: !Or
+    - !Condition cNorthVirginiaRegion
+    - !Condition cChinaPartition
+  cUseNatGateways: !Not [!Condition cIamVpceSupported]
 
 Resources:
   rVpc:
@@ -576,6 +573,36 @@ Resources:
                 "aws:ResourceAccount": !Ref "AWS::AccountId"
       PrivateDnsEnabled: true
       ServiceName: !Sub "com.amazonaws.${AWS::Region}.cloudformation"
+      SecurityGroupIds:
+        - !Ref rVpcEndpointSecurityGroup
+      SubnetIds:
+        - !Ref rPrivateSubnet3  # EC2 Subnet AZ1
+        - !Ref rPrivateSubnet4  # EC2 Subnet AZ2
+      VpcEndpointType: Interface
+      VpcId: !Ref rVpc
+
+  rVpcEndpointIam:
+    Type: "AWS::EC2::VPCEndpoint"
+    Condition: cIamVpceSupported
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowRequestsByAccountIdentitiesToAccountResources
+            Effect: Allow
+            Principal:
+              AWS: "*"
+            Action: "iam:GetRole"  # used by https://github.com/aws/aws-nitro-enclaves-acm/blob/main/src/vtok_agent/src/imds.rs#L206-L212
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "aws:PrincipalAccount": !Ref "AWS::AccountId"
+                "aws:ResourceAccount": !Ref "AWS::AccountId"
+      PrivateDnsEnabled: true
+      ServiceName: !If
+        - cChinaPartition
+        - "cn.com.amazonaws.iam"
+        - "com.amazonaws.iam"
       SecurityGroupIds:
         - !Ref rVpcEndpointSecurityGroup
       SubnetIds:
