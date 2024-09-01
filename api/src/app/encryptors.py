@@ -27,7 +27,7 @@ from aws_lambda_powertools import Logger
 import boto3
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
-import app.hpke as hpke
+import hpke
 
 from app import constants, models, encoders, resources
 
