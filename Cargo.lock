@@ -583,23 +583,24 @@ dependencies = [
 
 [[package]]
 name = "cel-interpreter"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9695f9bcc9ec195e0c35f2b9283adae5cef85cc41534a420216c8a12a323172"
+version = "0.8.1"
+source = "git+https://github.com/clarkmcc/cel-rust.git?branch=master#a5c6c2dbb658b13acf69f7b96c313288ae81d29b"
 dependencies = [
+ "base64 0.22.1",
  "cel-parser",
  "chrono",
  "nom",
  "paste",
+ "regex",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 
 [[package]]
 name = "cel-parser"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3a85ba148abbc551f1c32c8c0cff279dba234f6d38324bf372ba2395690879e"
+version = "0.7.1"
+source = "git+https://github.com/clarkmcc/cel-rust.git?branch=master#a5c6c2dbb658b13acf69f7b96c313288ae81d29b"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
@@ -635,9 +636,7 @@ checksum = "a21f936df1771bf62b77f047b726c4625ff2e8aa607c01ec06e5a05bd8463401"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
- "js-sys",
  "num-traits",
- "wasm-bindgen",
  "windows-targets",
 ]
 
