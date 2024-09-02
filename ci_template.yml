@@ -269,7 +269,7 @@ Resources:
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-          - Sid: AllowModifyIamRolesWithBoundary
+          - Sid: EnforceActionsHaveBoundary
             Effect: Allow
             Action:
               - "iam:AttachRolePolicy"
@@ -282,6 +282,15 @@ Resources:
             Condition:
               ArnEquals:
                 "iam:PermissionsBoundary": !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${AWS::StackName}-boundary-${AWS::Region}" # references self
+          - Sid: DenyChangesToBoundaryPolicy
+            Effect: Deny
+            Action:
+              - "iam:DeletePolicy"
+              - "iam:CreatePolicyVersion"
+              - "iam:CreatePolicy"
+              - "iam:DeletePolicyVersion"
+              - "iam:SetDefaultPolicyVersion"
+            Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${AWS::StackName}-boundary-${AWS::Region}" # references self
           - Sid: AllowModifyIamRoles
             Effect: Allow
             Action:
