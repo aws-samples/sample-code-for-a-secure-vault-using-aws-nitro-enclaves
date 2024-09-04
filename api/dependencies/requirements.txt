@@ -1,6 +1,6 @@
 aws-lambda-powertools[tracer,parser]==2.43.1
 # hpke currently depends on cryptography = "^42"
-cryptography==42.0.8
+cryptography==43.0.1
 hpke==0.3.1
 pksuid==1.1.2
 requests==2.32.3
