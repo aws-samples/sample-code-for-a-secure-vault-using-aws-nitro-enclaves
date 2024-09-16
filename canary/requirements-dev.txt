@@ -1,4 +1,4 @@
 black==24.8.0
 aws-lambda-powertools[all,aws-sdk]==2.43.1
-mypy-boto3-dynamodb==1.35.0
+mypy-boto3-dynamodb==1.35.15
 mypy-boto3-kms==1.35.0
