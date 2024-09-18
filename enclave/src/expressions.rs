@@ -60,7 +60,8 @@ pub fn execute_expressions(
 
         context.add_variable_from_value(field, value.clone());
 
-        let result: Value = serde_json::to_value(value)
+        let result: Value = value
+            .json()
             .map_err(|err| anyhow!("Unable to serialize JSON value: {}", err))?;
         println!("[enclave] expression: {} = {:?}", expression, result);
 
