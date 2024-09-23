@@ -30,6 +30,10 @@ Parameters:
   pRepositoryId:
     Type: String
     Description: GitHub Organization and Project to check out
+  pBranchName:
+    Type: String
+    Description: Git branch to check out
+    Default: main
   pKmsCloudFormationStackName:
     Type: String
     Description: KMS CloudFormation Stack Name
@@ -64,6 +68,7 @@ Metadata:
           default: Build Configuration
         Parameters:
           - pRepositoryId
+          - pBranchName
           - pUseCodeBuildFleet
           - pKmsCloudFormationStackName
 
@@ -582,7 +587,7 @@ Resources:
                 Version: "1"
                 Provider: CodeStarSourceConnection
               Configuration:
-                BranchName: main
+                BranchName: !Ref pBranchName
                 ConnectionArn: !Ref rCodeConnection
                 DetectChanges: true
                 FullRepositoryId: !Ref pRepositoryId
@@ -979,7 +984,6 @@ Resources:
       Source:
         BuildSpec: parent/buildspec.yml
         Type: CODEPIPELINE
-      SourceVersion: main
       TimeoutInMinutes: 20
 
   rEnclaveCodeBuildProject:
@@ -1023,7 +1027,6 @@ Resources:
       Source:
         BuildSpec: enclave/buildspec.yml
         Type: CODEPIPELINE
-      SourceVersion: main
       TimeoutInMinutes: 20
 
   rApiCodeBuildProject:
@@ -1060,7 +1063,6 @@ Resources:
       Source:
         BuildSpec: api/buildspec.yml
         Type: CODEPIPELINE
-      SourceVersion: main
       TimeoutInMinutes: 5
 
   rCanaryCodeBuildProject:
@@ -1097,7 +1099,6 @@ Resources:
       Source:
         BuildSpec: canary/buildspec.yml
         Type: CODEPIPELINE
-      SourceVersion: main
       TimeoutInMinutes: 5
 
   rStepFunctionsRole:
