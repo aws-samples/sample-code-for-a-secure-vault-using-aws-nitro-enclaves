@@ -40,7 +40,7 @@ logger = Logger(child=True)
 metrics = Metrics()
 router = Router()
 
-ALLOWED_KEYS: List[str] = list(models.VaultSchema.model_fields_set)
+ALLOWED_KEYS: List[str] = list(models.VaultSchema.model_fields.keys())
 
 
 @router.post("/", summary="Create a vault")
