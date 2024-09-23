@@ -20,10 +20,10 @@
 """
 
 import abc
-from typing import Optional, List, Dict, NamedTuple
+from typing import Optional, List, Dict, NamedTuple, Annotated
 
-from aws_lambda_powertools.shared.types import Annotated
 from aws_lambda_powertools.utilities.parser import BaseModel, Field
+from pydantic import ConfigDict
 
 
 class KeyPair(NamedTuple):
@@ -37,10 +37,7 @@ class EncryptedData(NamedTuple):
 
 
 class VaultBaseModel(BaseModel, abc.ABC):
-    class Config:
-        anystr_strip_whitespace = True
-        extra = "forbid"
-        frozen = True
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid", frozen=True)
 
 
 class VaultSchema(VaultBaseModel):
@@ -48,19 +45,21 @@ class VaultSchema(VaultBaseModel):
     first_name: Annotated[str, Field(max_length=1024)] = None
     middle_name: Annotated[str, Field(max_length=1024)] = None
     last_name: Annotated[str, Field(max_length=1024)] = None
-    phone_number: Annotated[str, Field(description="Primary phone number", regex=r"^\+[1-9]\d{1,14}$")] = None
-    ssn9: Annotated[str, Field(description="9-digit string", regex=r"^\d{9}$", min_length=9, max_length=9)] = None
-    ssn4: Annotated[str, Field(description="Last four of the SSN", regex=r"^\d{4}$", min_length=4, max_length=4)] = None
+    phone_number: Annotated[str, Field(description="Primary phone number", pattern=r"^\+[1-9]\d{1,14}$")] = None
+    ssn9: Annotated[str, Field(description="9-digit string", pattern=r"^\d{9}$", min_length=9, max_length=9)] = None
+    ssn4: Annotated[str, Field(description="Last four of the SSN", pattern=r"^\d{4}$", min_length=4, max_length=4)] = (
+        None
+    )
     dob: Annotated[
-        str, Field(description="Date of birth", regex=r"^\d{4}-\d{2}-\d{2}$", min_length=10, max_length=10)
+        str, Field(description="Date of birth", pattern=r"^\d{4}-\d{2}-\d{2}$", min_length=10, max_length=10)
     ] = None
     address1: Annotated[str, Field(description="First address line", max_length=1024)] = None
     address2: Annotated[str, Field(description="Second Address Line 2", max_length=1024)] = None
     address3: Annotated[str, Field(description="Address Line 3", max_length=1024)] = None
     city: Annotated[str, Field(max_length=1024)] = None
     state: Annotated[str, Field(max_length=1024)] = None
-    postal_code: Annotated[str, Field(regex=r"^([A-Za-z0-9\- ]*)$")] = None
-    country: Annotated[str, Field(min_length=2, max_length=2, regex=r"^[A-Za-z]{2}$")] = None
+    postal_code: Annotated[str, Field(pattern=r"^([A-Za-z0-9\- ]*)$")] = None
+    country: Annotated[str, Field(min_length=2, max_length=2, pattern=r"^[A-Za-z]{2}$")] = None
 
 
 class CreateVaultRequest(VaultSchema):

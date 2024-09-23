@@ -5,6 +5,7 @@ set -euo pipefail
 HOSTED_ZONE_ID=
 DOMAIN_NAME=
 GITHUB_REPO=
+GITHUB_BRANCH=main
 
 export $(grep -v '^#' .env | xargs -0)
 
@@ -70,6 +71,7 @@ aws cloudformation deploy --stack-name "${CI_STACK_NAME}" --template-file ci_tem
     "pHostedZoneId=${HOSTED_ZONE_ID}" \
     "pDomainName=${DOMAIN_NAME}" \
     "pRepositoryId=${GITHUB_REPO}" \
+    "pBranchName=${GITHUB_BRANCH}" \
     "pKmsCloudFormationStackName=${KEY_STACK_NAME}" \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
   --tags "AppManagerCFNStackKey=${CI_STACK_NAME}"

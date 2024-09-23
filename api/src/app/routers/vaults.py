@@ -19,7 +19,7 @@
 * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Annotated
 
 from aws_lambda_powertools import Logger, Tracer, Metrics
 from aws_lambda_powertools.event_handler.api_gateway import Router
@@ -29,7 +29,6 @@ from aws_lambda_powertools.event_handler.exceptions import (
 )
 from aws_lambda_powertools.metrics import MetricUnit
 from aws_lambda_powertools.event_handler.openapi.params import Body, Query, Path
-from aws_lambda_powertools.shared.types import Annotated
 
 from app import resources, vault, exceptions, utils, constants, models
 
@@ -41,7 +40,7 @@ logger = Logger(child=True)
 metrics = Metrics()
 router = Router()
 
-ALLOWED_KEYS: List[str] = models.VaultSchema.__fields__.keys()
+ALLOWED_KEYS: List[str] = list(models.VaultSchema.model_fields.keys())
 
 
 @router.post("/", summary="Create a vault")
@@ -55,7 +54,7 @@ def create_vault(
         logger.error("Transaction not found")
         raise InternalServerError("Transaction not found")
 
-    vault_id = vault.create_vault(txn, body.dict(by_alias=True, exclude_none=True))
+    vault_id = vault.create_vault(txn, body.model_dump(by_alias=True, exclude_none=True))
 
     metrics.add_metric(name="VaultCreate", unit=MetricUnit.Count, value=1)
 
@@ -145,7 +144,7 @@ def update_vault(
         raise InternalServerError("Transaction not found")
 
     try:
-        vault.update_vault(txn, vault_id, body.dict(by_alias=True, exclude_none=True))
+        vault.update_vault(txn, vault_id, body.model_dump(by_alias=True, exclude_none=True))
     except exceptions.InternalServerError:
         raise InternalServerError("Unable to update vault")
     except exceptions.NotFoundException:
