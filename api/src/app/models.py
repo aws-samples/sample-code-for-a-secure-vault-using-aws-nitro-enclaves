@@ -20,10 +20,10 @@
 """
 
 import abc
-from typing import Optional, List, Dict, NamedTuple
+from typing import Optional, List, Dict, NamedTuple, Annotated
 
-from aws_lambda_powertools.shared.types import Annotated
 from aws_lambda_powertools.utilities.parser import BaseModel, Field
+from pydantic import ConfigDict
 
 
 class KeyPair(NamedTuple):
@@ -37,10 +37,7 @@ class EncryptedData(NamedTuple):
 
 
 class VaultBaseModel(BaseModel, abc.ABC):
-    class Config:
-        anystr_strip_whitespace = True
-        extra = "forbid"
-        frozen = True
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid", frozen=True)
 
 
 class VaultSchema(VaultBaseModel):
