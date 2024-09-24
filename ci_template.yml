@@ -155,6 +155,53 @@ Resources:
                 "aws:PrincipalArn": !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/*"
       SecretId: !Ref rSigningSecret
 
+  rMeasurementSecret:
+    Type: "AWS::SecretsManager::Secret"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W77
+            reason: "Ignoring KMS"
+    Properties:
+      Description: !Sub "${AWS::StackName} Enclave Measurement Secret"
+
+  rMeasurementSecretPolicy:
+    Type: "AWS::SecretsManager::ResourcePolicy"
+    Properties:
+      BlockPublicPolicy: true
+      ResourcePolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnforceIdentityPerimeter
+            Effect: Deny
+            Principal:
+              AWS: "*"
+            Action: "secretsmanager:*"
+            Resource: "*"
+            Condition:
+              StringNotEqualsIfExists:
+                "aws:PrincipalAccount": !Ref "AWS::AccountId"
+              BoolIfExists:
+                "aws:PrincipalIsAWSService": "false"
+          - Sid: EnforceNetworkPerimeter
+            Effect: Deny
+            Principal:
+              AWS: "*"
+            Action: "secretsmanager:*"
+            Resource: "*"
+            Condition:
+              StringNotEqualsIfExists:
+                "aws:SourceVpc": !Ref "pVpcId"
+                "aws:PrincipalTag/network-perimeter-exception": "true"
+              BoolIfExists:
+                "aws:PrincipalIsAWSService": "false"
+                "aws:ViaAWSService": "false"
+              ArnNotLikeIfExists:
+                "aws:PrincipalArn": !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/*"
+      SecretId: !Ref rMeasurementSecret
+
   rArtifactBucket:
     Type: "AWS::S3::Bucket"
     UpdateReplacePolicy: Retain
@@ -861,6 +908,9 @@ Resources:
                 Action: "secretsmanager:GetSecretValue"
                 Resource: !Ref rSigningSecret
               - Effect: Allow
+                Action: "secretsmanager:PutSecretValue"
+                Resource: !Ref rMeasurementSecret
+              - Effect: Allow
                 Action: "signer:StartSigningJob"
                 Resource: !Ref rSigningProfile
               - Effect: Allow
@@ -1011,6 +1061,9 @@ Resources:
           - Name: PRIVATE_KEY
             Type: SECRETS_MANAGER
             Value: !Ref rSigningSecret
+          - Name: MEASUREMENT_SECRET_ID
+            Type: PLAINTEXT
+            Value: !Ref rMeasurementSecret
         Fleet: !If
           - cUseCodeBuildFleet
           - FleetArn: !Ref rCodeBuildFleet

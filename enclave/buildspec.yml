@@ -19,6 +19,7 @@ phases:
       - nitro-cli build-enclave --docker-uri "enclave-vault:latest" --output-file enclave-vault.eif --private-key nitro_vault_key.pem --signing-certificate nitro_vault_cert.pem > temp_measurements.json
       - PCR3=$(python -c"import hashlib; h=hashlib.sha384(); h.update(b'\0'*48); h.update(\"${INSTANCE_ROLE_ARN}\".encode('utf-8')); print(h.hexdigest())")
       - jq --arg PCR3 "$PCR3" '.Measurements += {"PCR3":$PCR3}' temp_measurements.json > measurements.json
+      - aws secretsmanager put-secret-value --secret-id "${MEASUREMENT_SECRET_ID}" --secret-string file://measurements.json
 
 artifacts:
   discard-paths: yes
