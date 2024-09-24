@@ -25,7 +25,6 @@ artifacts:
   discard-paths: yes
   files:
     - enclave/enclave-vault.eif  # Used by Deploy:DeployVault
-    - enclave/measurements.json  # Used by Invoke:UpdateKeyPolicyAttestations
     - vault_template.yml  # Used by Deploy:DeployVault
     - vault_template_configuration.json  # Used by Deploy:DeployVault
 

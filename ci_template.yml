@@ -861,10 +861,6 @@ Resources:
                 Provider: StepFunctions
               Configuration:
                 StateMachineArn: !Ref rKeyPolicyStateMachine
-                InputType: FilePath
-                Input: measurements.json
-              InputArtifacts:
-                - Name: EnclaveBuildOutput
               OutputArtifacts:
                 - Name: KeyPolicyInvokeOutput
               RunOrder: 2
@@ -1180,6 +1176,9 @@ Resources:
                   - "kms:GetKeyPolicy"
                   - "kms:PutKeyPolicy"
                 Resource: !Ref pEncryptionKeyArn
+              - Effect: Allow
+                Action: "secretsmanager:GetSecretValue"
+                Resource: !Ref rMeasurementSecret
       Tags:
         - Key: "aws-cloudformation:stack-name"
           Value: !Ref "AWS::StackName"
@@ -1196,8 +1195,17 @@ Resources:
     Type: "AWS::StepFunctions::StateMachine"
     Properties:
       Definition:
-        StartAt: BuildCondition
+        StartAt: GetMeasurements
         States:
+          GetMeasurements:
+            Type: Task
+            Resource: "arn:aws:states:::aws-sdk:secretsmanager:getSecretValue"
+            Parameters:
+              SecretId: "${SecretId}"
+            ResultSelector:
+              "Measurements.$": "States.StringToJson($.SecretString)"
+            OutputPath: "$.Measurements"
+            Next: BuildCondition
           BuildCondition:
             Type: Pass
             InputPath: "$.Measurements"
@@ -1253,6 +1261,7 @@ Resources:
             End: true
       DefinitionSubstitutions:
         KeyArn: !Ref pEncryptionKeyArn
+        SecretId: !Ref rMeasurementSecret
       EncryptionConfiguration:
         Type: AWS_OWNED_KEY
       RoleArn: !GetAtt rStepFunctionsRole.Arn
