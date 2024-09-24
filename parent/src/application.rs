@@ -28,8 +28,8 @@ impl Application {
     ) -> Result<Self, std::io::Error> {
         let address = format!("{}:{}", options.host, options.port);
         let listener = TcpListener::bind(address).await?;
-        let port = listener.local_addr().unwrap().port();
         let server = run(listener, options.clone(), enclaves)?;
+        let port = server.local_addr()?.port();
 
         tracing::info!("[parent] listening at http://{}:{}", options.host, port);
 
@@ -41,7 +41,7 @@ impl Application {
     }
 
     pub async fn run_until_stopped(self) -> Result<(), std::io::Error> {
-        self.server.await
+        self.server.tcp_nodelay(true).await
     }
 }
 
