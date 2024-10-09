@@ -1,4 +1,4 @@
-aws-lambda-powertools[tracer,parser]==3.0.0
+aws-lambda-powertools[tracer,parser]==3.1.0
 # hpke currently depends on cryptography = "^42"
 cryptography==42.0.8
 hpke==0.3.1
