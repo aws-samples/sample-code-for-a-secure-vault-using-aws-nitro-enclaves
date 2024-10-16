@@ -22,6 +22,6 @@ chrono = { version = "0.4.38", default-features = false, features = ["std", "clo
 hex = "0.4.3"
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"
-rustls = { version = "0.23.14", default-features = false, features = ["aws_lc_rs"] }
+rustls = { version = "0.23.15", default-features = false, features = ["aws_lc_rs"] }
 vsock = "0.5.1"
 zeroize = { version = "1.8.1", features = ["zeroize_derive"] }
