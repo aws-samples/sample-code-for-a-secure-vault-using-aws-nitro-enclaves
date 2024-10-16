@@ -286,6 +286,7 @@ Resources:
             RoleArn: !GetAtt rEventBridgeSchedulerRole.Arn
             ScheduleExpression: "rate(1 minute)"
       Role: !GetAtt rCanaryVpcFunctionRole.Arn
+      Timeout: 2  # seconds
       VpcConfig:
         SecurityGroupIds:
           - !Ref rLambdaSecurityGroup
@@ -337,7 +338,7 @@ Resources:
       Period: 60  # seconds
       Statistic: Average
       Threshold: 0
-      TreatMissingData: notBreaching
+      TreatMissingData: breaching
       Unit: Count
 
   DecryptionNoVpcAlarm:
@@ -361,7 +362,7 @@ Resources:
       Period: 60  # seconds
       Statistic: Average
       Threshold: 0
-      TreatMissingData: notBreaching
+      TreatMissingData: breaching
       Unit: Count
 
   AlarmTopic:
