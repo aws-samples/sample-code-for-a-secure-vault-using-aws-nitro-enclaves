@@ -53,12 +53,6 @@ Metadata:
 Conditions:
   cEnableRemoteAccess: !Equals [!Ref pEnableRemoteAccess, "true"]
   cEnableDnsFirewall: !Equals [!Ref pEnableDnsFirewall, "true"]
-  cNorthVirginiaRegion: !Equals [!Ref "AWS::Region", "us-east-1"]
-  cChinaPartition: !Equals [!Ref "AWS::URLSuffix", "amazonaws.com.cn"]
-  cIamVpceSupported: !Or
-    - !Condition cNorthVirginiaRegion
-    - !Condition cChinaPartition
-  cUseNatGateways: !Not [!Condition cIamVpceSupported]
 
 Resources:
   rVpc:
@@ -207,149 +201,6 @@ Resources:
     Properties:
       SubnetId: !Ref rPrivateSubnet4
       RouteTableId: !Ref rPrivateRouteTable4
-
-  rInternetGateway:
-    Type: "AWS::EC2::InternetGateway"
-    Condition: cUseNatGateways
-    Properties:
-      Tags:
-        - Key: Name
-          Value: !Sub "${pResourcePrefix}-igw"
-
-  rInternetGatewayAttachment:
-    Type: "AWS::EC2::VPCGatewayAttachment"
-    Condition: cUseNatGateways
-    Properties:
-      InternetGatewayId: !Ref rInternetGateway
-      VpcId: !Ref rVpc
-
-  rEIP1:
-    Type: "AWS::EC2::EIP"
-    Condition: cUseNatGateways
-    DependsOn: rInternetGatewayAttachment
-    Properties:
-      Domain: vpc
-      Tags:
-        - Key: Name
-          Value: !Sub
-            - "${pResourcePrefix}-eip-${AvailabilityZone}"
-            - AvailabilityZone: !Select [0, !GetAZs ""]
-
-  rEIP2:
-    Type: "AWS::EC2::EIP"
-    Condition: cUseNatGateways
-    DependsOn: rInternetGatewayAttachment
-    Properties:
-      Domain: vpc
-      Tags:
-        - Key: Name
-          Value: !Sub
-            - "${pResourcePrefix}-eip-${AvailabilityZone}"
-            - AvailabilityZone: !Select [1, !GetAZs ""]
-
-  rPublicSubnet1:
-    Type: "AWS::EC2::Subnet"
-    Condition: cUseNatGateways
-    Properties:
-      AvailabilityZone: !Select [0, !GetAZs ""]
-      CidrBlock: !Select [2, !Cidr [!Ref pCidrBlock, 6, 8]]  # /24
-      MapPublicIpOnLaunch: false
-      PrivateDnsNameOptionsOnLaunch:
-        EnableResourceNameDnsAAAARecord: false
-        EnableResourceNameDnsARecord: true
-        HostnameType: resource-name
-      Tags:
-        - Key: Name
-          Value: !Sub
-            - "${pResourcePrefix}-subnet-public1-${AvailabilityZone}"
-            - AvailabilityZone: !Select [0, !GetAZs ""]
-      VpcId: !Ref rVpc
-
-  rPublicSubnet2:
-    Type: "AWS::EC2::Subnet"
-    Condition: cUseNatGateways
-    Properties:
-      AvailabilityZone: !Select [1, !GetAZs ""]
-      CidrBlock: !Select [3, !Cidr [!Ref pCidrBlock, 6, 8]]  # /24
-      MapPublicIpOnLaunch: false
-      PrivateDnsNameOptionsOnLaunch:
-        EnableResourceNameDnsAAAARecord: false
-        EnableResourceNameDnsARecord: true
-        HostnameType: resource-name
-      Tags:
-        - Key: Name
-          Value: !Sub
-            - "${pResourcePrefix}-subnet-public2-${AvailabilityZone}"
-            - AvailabilityZone: !Select [1, !GetAZs ""]
-      VpcId: !Ref rVpc
-
-  rPublicRouteTable:
-    Type: "AWS::EC2::RouteTable"
-    Condition: cUseNatGateways
-    Properties:
-      VpcId: !Ref rVpc
-      Tags:
-        - Key: Name
-          Value: !Sub "${pResourcePrefix}-rtb-public"
-
-  rPublicRouteTableAssociation1:
-    Type: "AWS::EC2::SubnetRouteTableAssociation"
-    Condition: cUseNatGateways
-    Properties:
-      SubnetId: !Ref rPublicSubnet1
-      RouteTableId: !Ref rPublicRouteTable
-
-  rPublicRouteTableAssociation2:
-    Type: "AWS::EC2::SubnetRouteTableAssociation"
-    Condition: cUseNatGateways
-    Properties:
-      SubnetId: !Ref rPublicSubnet2
-      RouteTableId: !Ref rPublicRouteTable
-
-  rNatGateway1:
-    Type: "AWS::EC2::NatGateway"
-    Condition: cUseNatGateways
-    Properties:
-      AllocationId: !GetAtt rEIP1.AllocationId
-      SubnetId: !Ref rPublicSubnet1
-      Tags:
-        - Key: Name
-          Value: !Sub "${pResourcePrefix}-nat-public1-${rPublicSubnet1.AvailabilityZone}"
-
-  rNatGateway2:
-    Type: "AWS::EC2::NatGateway"
-    Condition: cUseNatGateways
-    Properties:
-      AllocationId: !GetAtt rEIP2.AllocationId
-      SubnetId: !Ref rPublicSubnet2
-      Tags:
-        - Key: Name
-          Value: !Sub "${pResourcePrefix}-nat-public2-${rPublicSubnet2.AvailabilityZone}"
-
-  rPublicDefaultRouteIPv4:
-    Type: "AWS::EC2::Route"
-    Condition: cUseNatGateways
-    DependsOn: rInternetGatewayAttachment
-    Properties:
-      DestinationCidrBlock: "0.0.0.0/0"
-      GatewayId: !Ref rInternetGateway
-      RouteTableId: !Ref rPublicRouteTable
-
-  rPrivateDefaultRouteIPv43:
-    Type: "AWS::EC2::Route"
-    Condition: cUseNatGateways
-    Properties:
-      DestinationCidrBlock: "0.0.0.0/0"
-      NatGatewayId: !Ref rNatGateway1
-      RouteTableId: !Ref rPrivateRouteTable3  # EC2 Route Table
-
-  rPrivateDefaultRouteIPv44:
-    Type: "AWS::EC2::Route"
-    Condition: cUseNatGateways
-    Properties:
-      DestinationCidrBlock: "0.0.0.0/0"
-      NatGatewayId: !Ref rNatGateway2
-      RouteTableId: !Ref rPrivateRouteTable4  # EC2 Route Table
 
   rVpcEndpointSecurityGroup:
     Type: "AWS::EC2::SecurityGroup"
@@ -573,36 +424,6 @@ Resources:
                 "aws:ResourceAccount": !Ref "AWS::AccountId"
       PrivateDnsEnabled: true
       ServiceName: !Sub "com.amazonaws.${AWS::Region}.cloudformation"
-      SecurityGroupIds:
-        - !Ref rVpcEndpointSecurityGroup
-      SubnetIds:
-        - !Ref rPrivateSubnet3  # EC2 Subnet AZ1
-        - !Ref rPrivateSubnet4  # EC2 Subnet AZ2
-      VpcEndpointType: Interface
-      VpcId: !Ref rVpc
-
-  rVpcEndpointIam:
-    Type: "AWS::EC2::VPCEndpoint"
-    Condition: cIamVpceSupported
-    Properties:
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Sid: AllowRequestsByAccountIdentitiesToAccountResources
-            Effect: Allow
-            Principal:
-              AWS: "*"
-            Action: "iam:GetRole"  # used by https://github.com/aws/aws-nitro-enclaves-acm/blob/main/src/vtok_agent/src/imds.rs#L206-L212
-            Resource: "*"
-            Condition:
-              StringEquals:
-                "aws:PrincipalAccount": !Ref "AWS::AccountId"
-                "aws:ResourceAccount": !Ref "AWS::AccountId"
-      PrivateDnsEnabled: true
-      ServiceName: !If
-        - cChinaPartition
-        - "cn.com.amazonaws.iam"
-        - "com.amazonaws.iam"
       SecurityGroupIds:
         - !Ref rVpcEndpointSecurityGroup
       SubnetIds:
