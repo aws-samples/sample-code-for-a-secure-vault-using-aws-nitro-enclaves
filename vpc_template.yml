@@ -144,9 +144,7 @@ Resources:
       VpcId: !Ref rVpc
       Tags:
         - Key: Name
-          Value: !Sub
-            - "${pResourcePrefix}-rtb-private1-${AvailabilityZone}"
-            - AvailabilityZone: !Select [0, !GetAZs ""]
+          Value: !Sub "${pResourcePrefix}-rtb-private1-${rPrivateSubnet1.AvailabilityZone}"
 
   rPrivateRouteTable2:
     Type: "AWS::EC2::RouteTable"
@@ -154,9 +152,7 @@ Resources:
       VpcId: !Ref rVpc
       Tags:
         - Key: Name
-          Value: !Sub
-            - "${pResourcePrefix}-rtb-private2-${AvailabilityZone}"
-            - AvailabilityZone: !Select [1, !GetAZs ""]
+          Value: !Sub "${pResourcePrefix}-rtb-private2-${rPrivateSubnet2.AvailabilityZone}"
 
   rPrivateRouteTable3:
     Type: "AWS::EC2::RouteTable"
@@ -164,9 +160,7 @@ Resources:
       VpcId: !Ref rVpc
       Tags:
         - Key: Name
-          Value: !Sub
-            - "${pResourcePrefix}-rtb-private3-${AvailabilityZone}"
-            - AvailabilityZone: !Select [0, !GetAZs ""]
+          Value: !Sub "${pResourcePrefix}-rtb-private3-${rPrivateSubnet3.AvailabilityZone}"
 
   rPrivateRouteTable4:
     Type: "AWS::EC2::RouteTable"
@@ -174,9 +168,7 @@ Resources:
       VpcId: !Ref rVpc
       Tags:
         - Key: Name
-          Value: !Sub
-            - "${pResourcePrefix}-rtb-private4-${AvailabilityZone}"
-            - AvailabilityZone: !Select [1, !GetAZs ""]
+          Value: !Sub "${pResourcePrefix}-rtb-private4-${rPrivateSubnet4.AvailabilityZone}"
 
   rPrivateRouteTableAssociation1:
     Type: "AWS::EC2::SubnetRouteTableAssociation"
