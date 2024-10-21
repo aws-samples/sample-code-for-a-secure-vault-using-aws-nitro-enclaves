@@ -220,7 +220,7 @@ Resources:
               SSEAlgorithm: "aws:kms"
       LifecycleConfiguration:
         Rules:
-          - ExpirationInDays: 3
+          - ExpirationInDays: 30
             Id: RetentionRule
             Status: Enabled
       ObjectLockEnabled: false
