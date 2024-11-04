@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: MIT-0
 
 use aws_lc_rs::digest;
-use base64::prelude::*;
 use cel_interpreter::{extractors::This, FunctionContext, ResolveResult};
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone, Utc};
+use data_encoding::{BASE64, HEXLOWER};
 use std::sync::Arc;
 
 /// Default functions available:
-/// https://github.com/clarkmcc/cel-rust/blob/master/interpreter/src/context.rs#L143
+/// https://github.com/clarkmcc/cel-rust/blob/master/interpreter/src/context.rs#L169
 
 /// String Functions
 
@@ -28,27 +28,27 @@ pub fn to_uppercase(This(this): This<Arc<String>>) -> String {
 
 pub fn hmac_sha256(This(this): This<Arc<String>>) -> String {
     let digest = digest::digest(&digest::SHA256, this.as_bytes());
-    hex::encode(digest.as_ref())
+    HEXLOWER.encode(digest.as_ref())
 }
 
 pub fn hmac_sha384(This(this): This<Arc<String>>) -> String {
     let digest = digest::digest(&digest::SHA384, this.as_bytes());
-    hex::encode(digest.as_ref())
+    HEXLOWER.encode(digest.as_ref())
 }
 
 pub fn hmac_sha512(This(this): This<Arc<String>>) -> String {
     let digest = digest::digest(&digest::SHA512, this.as_bytes());
-    hex::encode(digest.as_ref())
+    HEXLOWER.encode(digest.as_ref())
 }
 
 /// Hex Functions
 
 pub fn hex_encode(This(this): This<Arc<String>>) -> String {
-    hex::encode(this.as_bytes())
+    HEXLOWER.encode(this.as_bytes())
 }
 
 pub fn hex_decode(ftx: &FunctionContext, This(this): This<Arc<String>>) -> ResolveResult {
-    match hex::decode(this.as_bytes()) {
+    match HEXLOWER.decode(this.as_bytes()) {
         Ok(val) => match String::from_utf8(val) {
             Ok(result) => Ok(result.into()),
             Err(e) => ftx.error(e.to_string()).into(),
@@ -60,11 +60,11 @@ pub fn hex_decode(ftx: &FunctionContext, This(this): This<Arc<String>>) -> Resol
 /// Base64 Functions
 
 pub fn base64_encode(This(this): This<Arc<String>>) -> String {
-    BASE64_STANDARD.encode(this.as_bytes())
+    BASE64.encode(this.as_bytes())
 }
 
 pub fn base64_decode(ftx: &FunctionContext, This(this): This<Arc<String>>) -> ResolveResult {
-    match BASE64_STANDARD.decode(this.as_str()) {
+    match BASE64.decode(this.as_bytes()) {
         Ok(val) => match String::from_utf8(val) {
             Ok(result) => Ok(result.into()),
             Err(e) => ftx.error(e.to_string()).into(),

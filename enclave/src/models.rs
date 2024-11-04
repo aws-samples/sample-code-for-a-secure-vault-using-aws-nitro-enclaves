@@ -8,6 +8,7 @@ use aws_lc_rs::signature::{
     EcdsaSigningAlgorithm, ECDSA_P256_SHA256_ASN1_SIGNING, ECDSA_P384_SHA384_ASN1_SIGNING,
     ECDSA_P521_SHA512_ASN1_SIGNING,
 };
+use data_encoding::HEXLOWER;
 use rustls::crypto::aws_lc_rs::hpke::{
     DH_KEM_P256_HKDF_SHA256_AES_256, DH_KEM_P384_HKDF_SHA384_AES_256,
     DH_KEM_P521_HKDF_SHA512_AES_256,
@@ -88,9 +89,11 @@ impl TryFrom<&str> for EncryptedData {
     fn try_from(value: &str) -> Result<Self> {
         let data: EncryptedData = match value.split_once('#') {
             Some((hex_encapped_key, hex_ciphertext)) => {
-                let encapped_key = hex::decode(hex_encapped_key)
+                let encapped_key = HEXLOWER
+                    .decode(hex_encapped_key.as_bytes())
                     .map_err(|err| anyhow!("unable to hex decode encapped key: {:?}", err))?;
-                let ciphertext = hex::decode(hex_ciphertext)
+                let ciphertext = HEXLOWER
+                    .decode(hex_ciphertext.as_bytes())
                     .map_err(|err| anyhow!("unable to hex decode ciphertext: {:?}", err))?;
 
                 EncryptedData {
