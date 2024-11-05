@@ -14,18 +14,18 @@ name = "parent-vault"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = { version = "1.0.92", default-features = false }
-aws-config = { version = "1.5.9", default-features = false, features = ["rustls", "rt-tokio", "behavior-version-latest"] }
-aws-credential-types = { version = "1.2.1", default-features = false }
-axum = { version = "0.7.7", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
-byteorder = { version = "1.5.0", default-features = false }
-clap = { version = "4.5.20", default-features = false, features = ["std", "derive", "env"] }
-rand = { version = "0.8.5", default-features = false, features = ["std", "std_rng"] }
-serde = { version = "1.0.214", default-features = false, features = ["derive"] }
-serde_json = { version = "1.0.132", default-features = false }
-thiserror = { version = "1.0.66", default-features = false }
-tokio = { version = "1.41.0", default-features = false, features = ["rt-multi-thread", "process", "tracing"] }
-tracing = { version = "0.1.40", default-features = false, features = ["log"] }
-tracing-subscriber = { version = "0.3.18", default-features = false, features = ["ansi", "env-filter", "fmt", "json"] }
-vsock = { version = "0.5.1", default-features = false }
-zeroize = { version = "1.8.1", default-features = false, features = ["zeroize_derive"] }
+anyhow = { version = "=1.0.92", default-features = false }
+aws-config = { version = "=1.5.9", default-features = false, features = ["rustls", "rt-tokio", "behavior-version-latest"] }
+aws-credential-types = { version = "=1.2.1", default-features = false }
+axum = { version = "=0.7.7", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
+byteorder = { version = "=1.5.0", default-features = false }
+clap = { version = "=4.5.20", default-features = false, features = ["std", "derive", "env"] }
+rand = { version = "=0.8.5", default-features = false, features = ["std", "std_rng"] }
+serde = { version = "=1.0.214", default-features = false, features = ["derive"] }
+serde_json = { version = "=1.0.132", default-features = false }
+thiserror = { version = "=1.0.66", default-features = false }
+tokio = { version = "=1.41.0", default-features = false, features = ["rt-multi-thread", "process", "tracing"] }
+tracing = { version = "=0.1.40", default-features = false, features = ["log"] }
+tracing-subscriber = { version = "=0.3.18", default-features = false, features = ["ansi", "env-filter", "fmt", "json"] }
+vsock = { version = "=0.5.1", default-features = false }
+zeroize = { version = "=1.8.1", default-features = false, features = ["zeroize_derive"] }
