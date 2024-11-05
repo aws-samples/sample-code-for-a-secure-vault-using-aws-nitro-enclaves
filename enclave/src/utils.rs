@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: MIT-0
 
 use anyhow::{anyhow, Result};
-use base64::{prelude::BASE64_STANDARD, Engine as _};
+use data_encoding::BASE64;
 
 #[inline]
 pub fn base64_decode(input: &str) -> Result<Vec<u8>> {
-    let decoded = BASE64_STANDARD
-        .decode(input)
+    let decoded = BASE64
+        .decode(input.as_bytes())
         .map_err(|err| anyhow!("unable to base64 decode input: {:?}", err))?;
     Ok(decoded)
 }
