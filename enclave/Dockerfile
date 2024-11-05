@@ -174,7 +174,7 @@ COPY --from=planner /app/recipe.json recipe.json
 RUN cargo install cargo-chef --locked
 RUN cargo chef cook --release --target $TARGETPLATFORM --recipe-path recipe.json
 COPY . .
-RUN cargo build --target $TARGETPLATFORM --release --color never --locked
+RUN cargo build --target $TARGETPLATFORM --release --color never
 
 ####################################################################################################
 ## Final image
