@@ -14,7 +14,7 @@ name = "parent-vault"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = { version = "=1.0.92", default-features = false }
+anyhow = { version = "=1.0.93", default-features = false }
 aws-config = { version = "=1.5.9", default-features = false, features = ["rustls", "rt-tokio", "behavior-version-latest"] }
 aws-credential-types = { version = "=1.2.1", default-features = false }
 axum = { version = "=0.7.7", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
