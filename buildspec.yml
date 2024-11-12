@@ -1,10 +1,13 @@
 version: 0.2
 
 phases:
+  install:
+    commands:
+      - curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh -s -- -y
+      - rustup target install ${ARCH}-unknown-linux-gnu
   build:
     commands:
       - echo Build started on `date`
-      - rustup target install ${ARCH}-unknown-linux-gnu
       - cd parent
       - cargo build --target=${ARCH}-unknown-linux-gnu --release --color never
 
