@@ -12,10 +12,11 @@ phases:
     commands:
       - echo Build started on `date`
       - cd parent
-      - make build
+      - /root/.cargo/bin/cargo build --target=${ARCH}-unknown-linux-gnu --release --color never
       - cd ../enclave
       - make build-docker
       - echo Build completed on `date`
+    on-failure: ABORT
   post_build:
     commands:
       - echo "${PRIVATE_KEY}" > nitro_vault_key.pem
