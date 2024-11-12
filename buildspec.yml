@@ -8,7 +8,7 @@ phases:
     commands:
       - echo Build started on `date`
       - cd parent
-      - cargo build --target=${ARCH}-unknown-linux-gnu --release --color never
+      - /root/.cargo/bin/cargo build --target=${ARCH}-unknown-linux-gnu --release --color never
 
   post_build:
     commands:
