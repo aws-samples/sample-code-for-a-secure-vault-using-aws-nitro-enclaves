@@ -21,12 +21,6 @@ Parameters:
   pArtifactObjectKey:
     Type: String
     Description: Artifact S3 Object Key
-  pEnclaveBucketName:
-    Type: String
-    Description: Enclave S3 Bucket
-  pEnclaveObjectKey:
-    Type: String
-    Description: Enclave S3 Object Key
   pHostedZoneId:
     Type: "AWS::Route53::HostedZone::Id"
     Description: Hosted Zone ID
