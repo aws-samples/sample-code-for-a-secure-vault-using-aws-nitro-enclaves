@@ -909,8 +909,6 @@ Resources:
               - "logs:CreateLogStream"
               - "logs:PutLogEvents"
             Resource:
-              - !GetAtt rParentCodeBuildLogGroup.Arn
-              - !GetAtt rEnclaveCodeBuildLogGroup.Arn
               - !GetAtt rRustCodeBuildLogGroup.Arn
               - !GetAtt rApiCodeBuildLogGroup.Arn
               - !GetAtt rCanaryCodeBuildLogGroup.Arn
