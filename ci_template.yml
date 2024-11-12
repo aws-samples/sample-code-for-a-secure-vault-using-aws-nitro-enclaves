@@ -558,6 +558,7 @@ Resources:
             Resource:
               - !GetAtt rParentCodeBuildProject.Arn
               - !GetAtt rEnclaveCodeBuildProject.Arn
+              - !GetAtt rRustCodeBuildProject.Arn
               - !GetAtt rApiCodeBuildProject.Arn
               - !GetAtt rCanaryCodeBuildProject.Arn
           - Effect: Allow
@@ -644,6 +645,19 @@ Resources:
               RunOrder: 1
         - Name: Build
           Actions:
+            - Name: BuildRust
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref rRustCodeBuildProject
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: RustBuildOutput
+              RunOrder: 1
             - Name: BuildParent
               ActionTypeId:
                 Category: Build
@@ -938,10 +952,24 @@ Resources:
             Resource:
               - !GetAtt rParentCodeBuildLogGroup.Arn
               - !GetAtt rEnclaveCodeBuildLogGroup.Arn
+              - !GetAtt rRustCodeBuildLogGroup.Arn
               - !GetAtt rApiCodeBuildLogGroup.Arn
               - !GetAtt rCanaryCodeBuildLogGroup.Arn
       Roles:
         - !Ref rCodeBuildRole
+
+  rRustCodeBuildLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: "Ignoring KMS key"
+    Properties:
+      LogGroupName: !Sub "/aws/codebuild/${rRustCodeBuildProject}"
+      RetentionInDays: 3
 
   rEnclaveCodeBuildLogGroup:
     Type: "AWS::Logs::LogGroup"
@@ -994,6 +1022,40 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/codebuild/${rCanaryCodeBuildProject}"
       RetentionInDays: 3
+
+  rRustCodeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Cache:
+        Type: S3
+        Location: !Sub "${rArtifactBucket}/cache"
+      Description: Nitro Enclaves Vault - Rust
+      EncryptionKey: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+          - Name: ARCH
+            Type: PLAINTEXT
+            Value: x86_64
+        Fleet: !If
+          - cUseCodeBuildFleet
+          - FleetArn: !Ref rCodeBuildFleet
+          - !Ref "AWS::NoValue"
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        ImagePullCredentialsType: CODEBUILD
+        PrivilegedMode: true
+        Type: LINUX_CONTAINER
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+      QueuedTimeoutInMinutes: 5
+      ServiceRole: !GetAtt rCodeBuildRole.Arn
+      Source:
+        BuildSpec: buildspec.yml
+        Type: CODEPIPELINE
+      TimeoutInMinutes: 30
 
   rParentCodeBuildProject:
     Type: "AWS::CodeBuild::Project"

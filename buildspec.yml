@@ -1,0 +1,23 @@
+version: 0.2
+
+phases:
+  build:
+    commands:
+      - echo Build started on `date`
+      - rustup target install ${ARCH}-unknown-linux-gnu
+      - cd parent
+      - cargo build --target=${ARCH}-unknown-linux-gnu --release --color never
+
+  post_build:
+    commands:
+      - echo Build completed on `date`
+
+artifacts:
+  discard-paths: yes
+  files:
+    - target/${ARCH}-unknown-linux-gnu/release/parent-vault  # Used by Deploy:DeployVault
+
+cache:
+  files:
+    - '/root/.cargo/registry/**/*'
+    - '/root/.docker/**/*'

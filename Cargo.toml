@@ -5,6 +5,13 @@ members = [
 ]
 resolver = "2"
 
+[workspace.dependencies]
+anyhow = { version = "=1.0.93", default-features = false }
+serde = { version = "=1.0.215", default-features = false, features = ["derive"] }
+serde_json = { version = "=1.0.132", default-features = false }
+vsock = { version = "=0.5.1", default-features = false }
+zeroize = { version = "=1.8.1", default-features = false, features = ["zeroize_derive"] }
+
 [profile.release]
 strip = true      # Automatically strip symbols from the binary
 lto = "thin"      # Enable link time optimization
