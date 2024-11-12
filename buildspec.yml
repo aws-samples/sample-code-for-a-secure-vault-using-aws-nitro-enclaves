@@ -12,7 +12,7 @@ phases:
     commands:
       - echo Build started on `date`
       - cd parent
-      - /root/.cargo/bin/cargo build --target=${ARCH}-unknown-linux-gnu --release --color never
+      - make build
       - cd ../enclave
       - make build-docker
       - echo Build completed on `date`
