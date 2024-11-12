@@ -1,9 +1,9 @@
 [workspace]
-resolver = "2"
 members = [
     "enclave",
     "parent"
 ]
+resolver = "2"
 
 [profile.release]
 strip = true      # Automatically strip symbols from the binary

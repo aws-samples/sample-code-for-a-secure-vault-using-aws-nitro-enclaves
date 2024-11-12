@@ -51,7 +51,7 @@ updates:
           - "*"
 
   - package-ecosystem: "cargo"
-    directory: "/parent"
+    directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 1
@@ -59,25 +59,8 @@ updates:
       prefix: chore
       include: scope
     groups:
-      parent-cargo-dependencies:
+      cargo-dependencies:
         applies-to: version-updates
         update-types: [minor, patch]
         patterns:
           - "*"
-
-  - package-ecosystem: "cargo"
-    directory: "/enclave"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 1
-    commit-message:
-      prefix: chore
-      include: scope
-    groups:
-      enclave-cargo-dependencies:
-        applies-to: version-updates
-        update-types: [minor, patch]
-        patterns:
-          - "*"
-        exclude-patterns:
-          - "cel-interpreter*"

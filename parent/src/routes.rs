@@ -14,7 +14,6 @@ use crate::{constants, imds};
 use axum::extract::State;
 use axum::response::IntoResponse;
 use axum::Json;
-use rand::Rng;
 use serde_json::json;
 
 pub async fn health() -> impl IntoResponse {
@@ -66,8 +65,8 @@ pub async fn decrypt(
         return Err(AppError::EnclaveNotFound);
     }
 
-    let mut rng = rand::thread_rng();
-    let index: usize = rng.gen_range(0..enclaves.len());
+    let mut rng = fastrand::Rng::with_seed(0);
+    let index = rng.usize(..enclaves.len());
     let cid: u32 = enclaves[index]
         .enclave_cid
         .try_into()
