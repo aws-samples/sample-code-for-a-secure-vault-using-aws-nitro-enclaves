@@ -13,8 +13,8 @@ build:
 build-docker:
 	docker build --build-arg TARGETPLATFORM=${ARCH}-unknown-linux-gnu -t parent-vault:latest -f Dockerfile .
 	CONTAINER_ID=$(docker create parent-vault:latest)
-	docker cp $CONTAINER_ID:/app/parent-vault ./parent-vault
-	docker rm $CONTAINER_ID
+	docker cp ${CONTAINER_ID}:/app/parent-vault ./parent-vault
+	docker rm ${CONTAINER_ID}
 
 clean:
 	cargo clean
