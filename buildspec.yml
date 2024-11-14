@@ -33,3 +33,8 @@ artifacts:
     - enclave/enclave-vault.eif  # Used by Deploy:DeployVault
     - vault_template.yml  # Used by Deploy:DeployVault
     - vault_template_configuration.json  # Used by Deploy:DeployVault
+
+cache:
+  files:
+    - '/root/.cargo/registry/**/*'
+    - '/root/.docker/**/*'
