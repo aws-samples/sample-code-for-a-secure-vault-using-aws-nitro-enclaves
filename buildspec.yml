@@ -3,16 +3,12 @@ version: 0.2
 phases:
   install:
     commands:
-      - curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh -s -- -y
       - sudo dnf install --releasever=latest -y aws-nitro-enclaves-cli aws-nitro-enclaves-cli-devel
-  pre_build:
-    commands:
-      - git config --global advice.detachedHead false
   build:
     commands:
       - echo Build started on `date`
       - cd parent
-      - /root/.cargo/bin/cargo build --target=${ARCH}-unknown-linux-gnu --release --color never
+      - make build-docker
       - cd ../enclave
       - make build-docker
       - echo Build completed on `date`
@@ -30,12 +26,7 @@ phases:
 artifacts:
   discard-paths: yes
   files:
-    - target/${ARCH}-unknown-linux-gnu/release/parent-vault  # Used by Deploy:DeployVault
+    - parent/parent-vault  # Used by Deploy:DeployVault
     - enclave/enclave-vault.eif  # Used by Deploy:DeployVault
     - vault_template.yml  # Used by Deploy:DeployVault
     - vault_template_configuration.json  # Used by Deploy:DeployVault
-
-cache:
-  files:
-    - '/root/.cargo/registry/**/*'
-    - '/root/.docker/**/*'

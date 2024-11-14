@@ -95,7 +95,7 @@ Resources:
   rInstanceSecurityGroupEgress:
     Type: "AWS::EC2::SecurityGroupEgress"
     Properties:
-      CidrIp: "0.0.0.0/0"  # Required for access to IAM until a v1.3.0+ version of aws-nitro-enclaves-acm is released
+      CidrIp: "0.0.0.0/0"  # Required for access to S3
       Description: Allow HTTPS to anywhere
       FromPort: 443
       GroupId: !Ref rInstanceSecurityGroup
@@ -631,9 +631,8 @@ Resources:
 
             echo "Downloading built artifacts from S3..."
             aws s3 cp s3://${pArtifactBucketName}/${pArtifactObjectKey} artifacts.zip --no-progress
-            unzip -j artifacts.zip -d /home/ec2-user/
-            chown ec2-user:ec2-user /home/ec2-user/enclave-vault.eif
-            chown ec2-user:ec2-user /home/ec2-user/parent-vault
+            unzip -j artifacts.zip enclave-vault.eif parent-vault -d /home/ec2-user/
+            chown -R ec2-user:ec2-user /home/ec2-user/
 
             systemctl enable --now nitro-vault-server.service
 
