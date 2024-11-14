@@ -49,7 +49,7 @@ Globals:
     MemorySize: 128  # megabytes
     PropagateTags: true
     ReservedConcurrentExecutions: 1
-    Runtime: python3.12
+    Runtime: python3.13
     Timeout: 1  # seconds
 
 Resources:
