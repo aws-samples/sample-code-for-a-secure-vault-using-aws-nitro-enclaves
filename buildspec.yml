@@ -9,11 +9,11 @@ phases:
       - echo Build started on `date`
       - cd parent
       - make build-docker
-      - cd ../enclave
-      - make build-docker
       - CONTAINER_ID=$(docker create parent-vault:latest)
       - docker cp $CONTAINER_ID:/app/parent-vault ./parent-vault
       - docker rm $CONTAINER_ID
+      - cd ../enclave
+      - make build-docker
       - echo Build completed on `date`
   post_build:
     commands:
