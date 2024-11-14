@@ -1,3 +1,27 @@
+# Copyright 2020-2024 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+####################################################################################################
+## Chef image
+####################################################################################################
+FROM public.ecr.aws/docker/library/rust:latest as chef
+ARG TARGETPLATFORM
+
+WORKDIR /app
+RUN apt-get update && apt-get install -y build-essential
+RUN rustup target add $TARGETPLATFORM
+RUN cargo install cargo-chef --locked
+
+####################################################################################################
+## Planner image
+####################################################################################################
+FROM chef as planner
+COPY . .
+RUN cargo chef prepare  --recipe-path recipe.json
+
+####################################################################################################
+## Builder image
+####################################################################################################
 FROM chef as builder
 ARG TARGETPLATFORM
 
