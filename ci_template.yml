@@ -682,8 +682,6 @@ Resources:
               OutputArtifacts:
                 - Name: CanaryBuildOutput
               RunOrder: 1
-          OnFailure:
-            Result: ROLLBACK
         - Name: Deploy
           Actions:
             - Name: DeployVault
