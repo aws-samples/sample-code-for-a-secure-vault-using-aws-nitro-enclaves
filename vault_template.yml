@@ -597,6 +597,9 @@ Resources:
             DeviceIndex: 0
             Groups:
               - !Ref rInstanceSecurityGroup
+        PrivateDnsNameOptions:
+          EnableResourceNameDnsARecord: true
+          HostnameType: resource-name
         TagSpecifications:
           - ResourceType: instance
             Tags:
@@ -604,6 +607,8 @@ Resources:
                 Value: nitro-vault
               - Key: InstanceRoleArn
                 Value: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/vault/${pInstanceRoleName}"
+              - Key: CW-Dashboard
+                Value: Nginx
               - Key: AppManagerCFNStackKey
                 Value: !Ref "AWS::StackName"
         UserData:
