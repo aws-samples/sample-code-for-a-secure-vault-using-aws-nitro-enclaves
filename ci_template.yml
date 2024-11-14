@@ -300,7 +300,7 @@ Resources:
     Type: "AWS::CodeBuild::Fleet"
     Condition: cUseCodeBuildFleet
     Properties:
-      BaseCapacity: 2
+      BaseCapacity: 1
       ComputeType: BUILD_GENERAL1_SMALL
       EnvironmentType: LINUX_CONTAINER
 
@@ -556,8 +556,7 @@ Resources:
               - "codebuild:BatchGetBuilds"
               - "codebuild:StartBuild"
             Resource:
-              - !GetAtt rParentCodeBuildProject.Arn
-              - !GetAtt rEnclaveCodeBuildProject.Arn
+              - !GetAtt rVaultCodeBuildProject.Arn
               - !GetAtt rApiCodeBuildProject.Arn
               - !GetAtt rCanaryCodeBuildProject.Arn
           - Effect: Allow
@@ -644,31 +643,18 @@ Resources:
               RunOrder: 1
         - Name: Build
           Actions:
-            - Name: BuildParent
+            - Name: BuildVault
               ActionTypeId:
                 Category: Build
                 Owner: AWS
                 Version: "1"
                 Provider: CodeBuild
               Configuration:
-                ProjectName: !Ref rParentCodeBuildProject
+                ProjectName: !Ref rVaultCodeBuildProject
               InputArtifacts:
                 - Name: SourceOutput
               OutputArtifacts:
-                - Name: ParentBuildOutput
-              RunOrder: 1
-            - Name: BuildEnclave
-              ActionTypeId:
-                Category: Build
-                Owner: AWS
-                Version: "1"
-                Provider: CodeBuild
-              Configuration:
-                ProjectName: !Ref rEnclaveCodeBuildProject
-              InputArtifacts:
-                - Name: SourceOutput
-              OutputArtifacts:
-                - Name: EnclaveBuildOutput
+                - Name: VaultBuildOutput
               RunOrder: 1
             - Name: BuildApi
               ActionTypeId:
@@ -696,8 +682,6 @@ Resources:
               OutputArtifacts:
                 - Name: CanaryBuildOutput
               RunOrder: 1
-          OnFailure:
-            Result: ROLLBACK
         - Name: Deploy
           Actions:
             - Name: DeployVault
@@ -719,27 +703,15 @@ Resources:
                       "pHostedZoneId": "${pHostedZoneId}",
                       "pDomainName": "${pDomainName}",
                       "pInstanceRoleName": "${rInstanceRole}",
-                      "pParentBucketName": {
+                      "pArtifactBucketName": {
                         "Fn::GetArtifactAtt": [
-                          "ParentBuildOutput",
+                          "VaultBuildOutput",
                           "BucketName"
                         ]
                       },
-                      "pParentObjectKey": {
+                      "pArtifactObjectKey": {
                         "Fn::GetArtifactAtt": [
-                          "ParentBuildOutput",
-                          "ObjectKey"
-                        ]
-                      },
-                      "pEnclaveBucketName": {
-                        "Fn::GetArtifactAtt": [
-                          "EnclaveBuildOutput",
-                          "BucketName"
-                        ]
-                      },
-                      "pEnclaveObjectKey": {
-                        "Fn::GetArtifactAtt": [
-                          "EnclaveBuildOutput",
+                          "VaultBuildOutput",
                           "ObjectKey"
                         ]
                       }
@@ -747,11 +719,10 @@ Resources:
                   - pSubnetIds: !Join [",", !Ref pInstanceSubnetIds]
                 RoleArn: !GetAtt rCloudFormationRole.Arn
                 StackName: !Sub "${AWS::StackName}-vault"
-                TemplateConfiguration: "EnclaveBuildOutput::vault_template_configuration.json"
-                TemplatePath: "EnclaveBuildOutput::vault_template.yml"
+                TemplateConfiguration: "VaultBuildOutput::vault_template_configuration.json"
+                TemplatePath: "VaultBuildOutput::vault_template.yml"
               InputArtifacts:
-                - Name: ParentBuildOutput
-                - Name: EnclaveBuildOutput
+                - Name: VaultBuildOutput
               OutputArtifacts:
                 - Name: VaultDeployOutput
               RunOrder: 1
@@ -936,14 +907,13 @@ Resources:
               - "logs:CreateLogStream"
               - "logs:PutLogEvents"
             Resource:
-              - !GetAtt rParentCodeBuildLogGroup.Arn
-              - !GetAtt rEnclaveCodeBuildLogGroup.Arn
+              - !GetAtt rVaultCodeBuildLogGroup.Arn
               - !GetAtt rApiCodeBuildLogGroup.Arn
               - !GetAtt rCanaryCodeBuildLogGroup.Arn
       Roles:
         - !Ref rCodeBuildRole
 
-  rEnclaveCodeBuildLogGroup:
+  rVaultCodeBuildLogGroup:
     Type: "AWS::Logs::LogGroup"
     UpdateReplacePolicy: Delete
     DeletionPolicy: Delete
@@ -953,20 +923,7 @@ Resources:
           - id: W84
             reason: "Ignoring KMS key"
     Properties:
-      LogGroupName: !Sub "/aws/codebuild/${rEnclaveCodeBuildProject}"
-      RetentionInDays: 3
-
-  rParentCodeBuildLogGroup:
-    Type: "AWS::Logs::LogGroup"
-    UpdateReplacePolicy: Delete
-    DeletionPolicy: Delete
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W84
-            reason: "Ignoring KMS key"
-    Properties:
-      LogGroupName: !Sub "/aws/codebuild/${rParentCodeBuildProject}"
+      LogGroupName: !Sub "/aws/codebuild/${rVaultCodeBuildProject}"
       RetentionInDays: 3
 
   rApiCodeBuildLogGroup:
@@ -995,7 +952,7 @@ Resources:
       LogGroupName: !Sub "/aws/codebuild/${rCanaryCodeBuildProject}"
       RetentionInDays: 3
 
-  rParentCodeBuildProject:
+  rVaultCodeBuildProject:
     Type: "AWS::CodeBuild::Project"
     Properties:
       Artifacts:
@@ -1006,44 +963,7 @@ Resources:
           - LOCAL_SOURCE_CACHE
           - LOCAL_DOCKER_LAYER_CACHE
           - LOCAL_CUSTOM_CACHE
-      Description: Nitro Enclaves Vault - Parent
-      EncryptionKey: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
-      Environment:
-        ComputeType: BUILD_GENERAL1_SMALL
-        EnvironmentVariables:
-          - Name: ARCH
-            Type: PLAINTEXT
-            Value: x86_64
-        Fleet: !If
-          - cUseCodeBuildFleet
-          - FleetArn: !Ref rCodeBuildFleet
-          - !Ref "AWS::NoValue"
-        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
-        ImagePullCredentialsType: CODEBUILD
-        PrivilegedMode: true
-        Type: LINUX_CONTAINER
-      LogsConfig:
-        CloudWatchLogs:
-          Status: ENABLED
-      QueuedTimeoutInMinutes: 5
-      ServiceRole: !GetAtt rCodeBuildRole.Arn
-      Source:
-        BuildSpec: parent/buildspec.yml
-        Type: CODEPIPELINE
-      TimeoutInMinutes: 20
-
-  rEnclaveCodeBuildProject:
-    Type: "AWS::CodeBuild::Project"
-    Properties:
-      Artifacts:
-        Type: CODEPIPELINE
-      Cache:
-        Type: LOCAL
-        Modes:
-          - LOCAL_SOURCE_CACHE
-          - LOCAL_DOCKER_LAYER_CACHE
-          - LOCAL_CUSTOM_CACHE
-      Description: Nitro Enclaves Vault - Enclaves
+      Description: Nitro Enclaves Vault - Vault
       EncryptionKey: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
@@ -1074,9 +994,9 @@ Resources:
       QueuedTimeoutInMinutes: 5
       ServiceRole: !GetAtt rCodeBuildRole.Arn
       Source:
-        BuildSpec: enclave/buildspec.yml
+        BuildSpec: buildspec.yml
         Type: CODEPIPELINE
-      TimeoutInMinutes: 20
+      TimeoutInMinutes: 30
 
   rApiCodeBuildProject:
     Type: "AWS::CodeBuild::Project"

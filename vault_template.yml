@@ -15,18 +15,12 @@ Parameters:
   pVpcCidr:
     Type: String
     Description: VPC CIDR
-  pParentBucketName:
+  pArtifactBucketName:
     Type: String
-    Description: Parent S3 Bucket
-  pParentObjectKey:
+    Description: Artifact S3 Bucket
+  pArtifactObjectKey:
     Type: String
-    Description: Parent S3 Object Key
-  pEnclaveBucketName:
-    Type: String
-    Description: Enclave S3 Bucket
-  pEnclaveObjectKey:
-    Type: String
-    Description: Enclave S3 Object Key
+    Description: Artifact S3 Object Key
   pHostedZoneId:
     Type: "AWS::Route53::HostedZone::Id"
     Description: Hosted Zone ID
@@ -101,7 +95,7 @@ Resources:
   rInstanceSecurityGroupEgress:
     Type: "AWS::EC2::SecurityGroupEgress"
     Properties:
-      CidrIp: "0.0.0.0/0"  # Required for access to IAM until a v1.3.0+ version of aws-nitro-enclaves-acm is released
+      CidrIp: "0.0.0.0/0"  # Required for access to S3
       Description: Allow HTTPS to anywhere
       FromPort: 443
       GroupId: !Ref rInstanceSecurityGroup
@@ -128,9 +122,7 @@ Resources:
         Statement:
           - Effect: Allow
             Action: "s3:GetObject"
-            Resource:
-              - !Sub "arn:${AWS::Partition}:s3:::${pParentBucketName}/${pParentObjectKey}"
-              - !Sub "arn:${AWS::Partition}:s3:::${pEnclaveBucketName}/${pEnclaveObjectKey}"
+            Resource: !Sub "arn:${AWS::Partition}:s3:::${pArtifactBucketName}/${pArtifactObjectKey}"
           - Effect: Allow
             Action:
               - "cloudformation:DescribeStackResource"
@@ -637,14 +629,10 @@ Resources:
             systemctl enable --now nitro-enclaves-vsock-proxy.service
             systemctl enable --now nitro-enclaves-acm.service
 
-            echo "Downloading enclave from S3..."
-            aws s3 cp s3://${pEnclaveBucketName}/${pEnclaveObjectKey} enclave.zip --no-progress
-            unzip -j enclave.zip "enclave-vault.eif" -d /home/ec2-user/
-            chown ec2-user:ec2-user /home/ec2-user/enclave-vault.eif
-
-            aws s3 cp s3://${pParentBucketName}/${pParentObjectKey} parent.zip --no-progress
-            unzip -j parent.zip "parent-vault" -d /home/ec2-user/
-            chown ec2-user:ec2-user /home/ec2-user/parent-vault
+            echo "Downloading built artifacts from S3..."
+            aws s3 cp s3://${pArtifactBucketName}/${pArtifactObjectKey} artifacts.zip --no-progress
+            unzip -j artifacts.zip enclave-vault.eif parent-vault -d /home/ec2-user/
+            chown -R ec2-user:ec2-user /home/ec2-user/
 
             systemctl enable --now nitro-vault-server.service
 
