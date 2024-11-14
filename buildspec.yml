@@ -11,6 +11,9 @@ phases:
       - make build-docker
       - cd ../enclave
       - make build-docker
+      - CONTAINER_ID=$(docker create parent-vault:latest)
+      - docker cp $CONTAINER_ID:/app/parent-vault ./parent-vault
+      - docker rm $CONTAINER_ID
       - echo Build completed on `date`
   post_build:
     commands:
