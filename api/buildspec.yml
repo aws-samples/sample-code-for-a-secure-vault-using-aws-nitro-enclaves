@@ -27,5 +27,6 @@ artifacts:
 cache:
   files:
     - '/root/.cache/**/*'
+    - '/root/.pyenv/**/*'
     - '/root/api/.aws-sam/**/*'
     - '/root/api/.venv/**/*'
