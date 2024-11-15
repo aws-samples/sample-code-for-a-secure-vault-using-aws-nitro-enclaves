@@ -218,8 +218,7 @@ Resources:
         Statement:
           - Sid: AllowRequestsToAWSOwnedResources
             Effect: Allow
-            Principal:
-              AWS: "*"
+            Principal: "*"
             Action: "s3:GetObject"
             Resource:
               - !Sub "arn:${AWS::Partition}:s3:::al2023-repos-${AWS::Region}-de612dc2/*"
@@ -239,8 +238,7 @@ Resources:
               - !Sub "arn:${AWS::Partition}:s3:::aws-ec2-enclave-certificate-${AWS::Region}-prod/*"
           - Sid: AllowRequestsByAccountIdentitiesToAccountResources
             Effect: Allow
-            Principal:
-              AWS: "*"
+            Principal: "*"
             Action: "s3:GetObject"
             Resource: "*"
             Condition:
@@ -262,9 +260,8 @@ Resources:
         Statement:
           - Sid: AllowRequestsByAccountIdentitiesToAccountResources
             Effect: Allow
-            Principal:
-              AWS: "*"
-            Action: "dynamodb:*"
+            Principal: "*"
+            Action: "*"
             Resource: "*"
             Condition:
               StringEquals:
@@ -284,8 +281,7 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
-            Principal:
-              AWS: "*"
+            Principal: "*"
             Action:
               - "kms:Decrypt"
               - "kms:GenerateDataKeyPairWithoutPlaintext"
@@ -318,7 +314,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal: "*"
-            Action: "ssm:*"
+            Action: "*"
             Resource: "*"
           - Sid: DenyRequestsByThirdPartyIdentities
             Effect: Deny
@@ -347,7 +343,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal: "*"
-            Action: "ssmmessages:*"
+            Action: "*"
             Resource: "*"
           - Sid: DenyRequestsByThirdPartyIdentities
             Effect: Deny
@@ -376,7 +372,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal: "*"
-            Action: "ec2messages:*"
+            Action: "*"
             Resource: "*"
           - Sid: DenyRequestsByThirdPartyIdentities
             Effect: Deny
@@ -404,8 +400,7 @@ Resources:
         Statement:
           - Sid: AllowRequestsByAccountIdentitiesToAccountResources
             Effect: Allow
-            Principal:
-              AWS: "*"
+            Principal: "*"
             Action:
               - "cloudformation:DescribeStackResource"  # used by cfn-init
               - "cloudformation:SignalResource"  # used by cfn-signal
