@@ -297,7 +297,9 @@ Resources:
             Effect: Deny
             Principal: "*"
             Action: "*"
-            Resource: "*"
+            Resource:
+              - !Sub "${rArtifactBucket.Arn}/*"
+              - !GetAtt rArtifactBucket.Arn
             Condition:
               StringNotEqualsIfExists:
                 "aws:SourceAccount": !Ref "AWS::AccountId"
@@ -559,7 +561,7 @@ Resources:
           Value: rCodePipelineRole
         - Key: AppManagerCFNStackKey
           Value: !Ref "AWS::StackName"
-        - Key: "db:exclude:network"
+        - Key: "dp:exclude:network"
           Value: "true"
 
   rCodePipelinePolicy:
@@ -924,7 +926,7 @@ Resources:
           Value: rCodeBuildRole
         - Key: AppManagerCFNStackKey
           Value: !Ref "AWS::StackName"
-        - Key: "db:exclude:network"
+        - Key: "dp:exclude:network"
           Value: "true"
 
   rCloudWatchLogsPolicy:
@@ -1140,7 +1142,7 @@ Resources:
           Value: rStepFunctionsRole
         - Key: AppManagerCFNStackKey
           Value: !Ref "AWS::StackName"
-        - Key: "db:exclude:network"
+        - Key: "dp:exclude:network"
           Value: "true"
 
   rKeyPolicyStateMachine:
