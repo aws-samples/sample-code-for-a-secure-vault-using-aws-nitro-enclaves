@@ -377,8 +377,7 @@ Resources:
         Statement:
           - Sid: EnforceIdentityPerimeter
             Effect: Deny
-            Principal:
-              AWS: "*"
+            Principal: "*"
             Action:
               - "sns:AddPermission"
               - "sns:DeleteTopic"
@@ -398,8 +397,7 @@ Resources:
                 "aws:PrincipalIsAWSService": "false"
           - Sid: EnforceNetworkPerimeter
             Effect: Deny
-            Principal:
-              AWS: "*"
+            Principal: "*"
             Action:
               - "sns:AddPermission"
               - "sns:DeleteTopic"
@@ -415,7 +413,7 @@ Resources:
             Condition:
               StringNotEqualsIfExists:
                 "aws:SourceVpc": !Ref pVpcId
-                "aws:PrincipalTag/network-perimeter-exception": "true"
+                "aws:PrincipalTag/dp:exclude:network": "true"
               BoolIfExists:
                 "aws:PrincipalIsAWSService": "false"
                 "aws:ViaAWSService": "false"

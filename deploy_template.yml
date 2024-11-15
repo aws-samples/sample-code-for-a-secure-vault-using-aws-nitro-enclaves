@@ -251,7 +251,7 @@ Resources:
           Value: !Ref "AWS::StackId"
         - Key: "aws-cloudformation:logical-id"
           Value: rDeploymentRole
-        - Key: "network-perimeter-exception"
+        - Key: "dp:exclude:network"
           Value: "true"
 
 Outputs:
