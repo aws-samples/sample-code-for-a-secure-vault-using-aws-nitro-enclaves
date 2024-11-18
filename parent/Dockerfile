@@ -34,7 +34,7 @@ RUN cargo build --target $TARGETPLATFORM --release --color never
 ####################################################################################################
 ## Final image
 ####################################################################################################
-FROM public.ecr.aws/lts/ubuntu:latest
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023-minimal
 ARG TARGETPLATFORM
 
 WORKDIR /app

@@ -3,7 +3,7 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      python: 3.12
+      python: 3.13
   pre_build:
     commands:
       - cd api
@@ -27,5 +27,6 @@ artifacts:
 cache:
   files:
     - '/root/.cache/**/*'
+    - '/root/.pyenv/**/*'
     - '/root/api/.aws-sam/**/*'
     - '/root/api/.venv/**/*'
