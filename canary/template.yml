@@ -13,6 +13,9 @@ Parameters:
   pSubnetIds:
     Type: "List<AWS::EC2::Subnet::Id>"
     Description: Subnet IDs for Lambda function
+  pVpcCidr:
+    Type: String
+    Description: VPC CIDR
   pEncryptionKeyArn:
     Type: String
     Description: Encryption Key ARN
@@ -52,14 +55,56 @@ Globals:
     Runtime: python3.12
     Timeout: 1  # seconds
 
+Mappings:
+  RegionMap:
+    ap-south-1:
+      dynamodb: pl-66a7420f
+    eu-north-1:
+      dynamodb: pl-adae4bc4
+    eu-west-3:
+      dynamodb: pl-abb451c2
+    eu-west-2:
+      dynamodb: pl-b3a742da
+    eu-west-1:
+      dynamodb: pl-6fa54006
+    ap-northeast-3:
+      dynamodb: pl-47a6432e
+    ap-northeast-2:
+      dynamodb: pl-48a54021
+    ap-northeast-1:
+      dynamodb: pl-78a54011
+    ca-central-1:
+      dynamodb: pl-4ea54027
+    sa-east-1:
+      dynamodb: pl-60a54009
+    ap-southeast-1:
+      dynamodb: pl-67a5400e
+    ap-southeast-2:
+      dynamodb: pl-62a5400b
+    eu-central-1:
+      dynamodb: pl-66a5400f
+    us-east-1:
+      dynamodb: pl-02cd2c6b
+    us-east-2:
+      dynamodb: pl-4ca54025
+    us-west-1:
+      dynamodb: pl-6ea54007
+    us-west-2:
+      dynamodb: pl-00a54069
+
 Resources:
   rLambdaSecurityGroup:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
       GroupDescription: Nitro Enclaves Vault Canary
       SecurityGroupEgress:
-        - CidrIp: "0.0.0.0/0"  # Required for access to DynamoDB
-          Description: Allow HTTPS traffic to anywhere
+        - Description: Allow HTTPS traffic to DynamoDB
+          DestinationPrefixListId: !FindInMap [RegionMap, !Ref "AWS::Region", dynamodb]
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+        - CidrIp: !Ref pVpcCidr
+          Description: Allow HTTPS traffic to VPC
           FromPort: 443
           IpProtocol: tcp
           ToPort: 443
