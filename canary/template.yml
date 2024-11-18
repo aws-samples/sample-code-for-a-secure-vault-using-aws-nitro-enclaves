@@ -362,12 +362,12 @@ Resources:
             ScheduleExpression: "rate(1 minute)"
       Role: !GetAtt rCanaryNoVpcFunctionRole.Arn
 
-  DecryptionVpcAlarm:
+  rDecryptionVpcAlarm:
     Type: "AWS::CloudWatch::Alarm"
     Properties:
       AlarmDescription: !Sub "[KMS] Decryption succeeded from inside VPC (${pVpcId})"
       AlarmActions:
-        - !Ref AlarmTopic
+        - !Ref rAlarmTopic
       ComparisonOperator: GreaterThanThreshold
       DatapointsToAlarm: 1
       Dimensions:
@@ -375,23 +375,23 @@ Resources:
           Value: canary_vpc
       EvaluationPeriods: 1
       InsufficientDataActions:
-        - !Ref AlarmTopic
+        - !Ref rAlarmTopic
       MetricName: DecryptSuccess
       Namespace: NitroVault
       OKActions:
-        - !Ref AlarmTopic
+        - !Ref rAlarmTopic
       Period: 60  # seconds
       Statistic: Average
       Threshold: 0
       TreatMissingData: breaching
       Unit: Count
 
-  DecryptionNoVpcAlarm:
+  rDecryptionNoVpcAlarm:
     Type: "AWS::CloudWatch::Alarm"
     Properties:
       AlarmDescription: !Sub "[KMS] Decryption succeeded from outside VPC (${pVpcId})"
       AlarmActions:
-        - !Ref AlarmTopic
+        - !Ref rAlarmTopic
       ComparisonOperator: GreaterThanThreshold
       DatapointsToAlarm: 1
       Dimensions:
@@ -399,22 +399,23 @@ Resources:
           Value: canary_no_vpc
       EvaluationPeriods: 1
       InsufficientDataActions:
-        - !Ref AlarmTopic
+        - !Ref rAlarmTopic
       MetricName: DecryptSuccess
       Namespace: NitroVault
       OKActions:
-        - !Ref AlarmTopic
+        - !Ref rAlarmTopic
       Period: 60  # seconds
       Statistic: Average
       Threshold: 0
       TreatMissingData: breaching
       Unit: Count
 
-  AlarmTopic:
+  rAlarmTopic:
     Type: "AWS::SNS::Topic"
-    Properties: {}
+    Properties:
+      KmsMasterKeyId: "alias/aws/sns"
 
-  AlarmTopicPolicy:
+  rAlarmTopicPolicy:
     Type: "AWS::SNS::TopicPolicy"
     Properties:
       PolicyDocument:
@@ -434,7 +435,7 @@ Resources:
               - "sns:RemovePermission"
               - "sns:SetTopicAttributes"
               - "sns:Subscribe"
-            Resource: !Ref AlarmTopic
+            Resource: !Ref rAlarmTopic
             Condition:
               StringNotEqualsIfExists:
                 "aws:PrincipalAccount": !Ref "AWS::AccountId"
@@ -454,7 +455,7 @@ Resources:
               - "sns:RemovePermission"
               - "sns:SetTopicAttributes"
               - "sns:Subscribe"
-            Resource: !Ref AlarmTopic
+            Resource: !Ref rAlarmTopic
             Condition:
               StringNotEqualsIfExists:
                 "aws:SourceVpc": !Ref pVpcId
@@ -469,26 +470,26 @@ Resources:
             Principal:
               Service: !Sub "cloudwatch.${AWS::URLSuffix}"
             Action: "sns:Publish"
-            Resource: !Ref AlarmTopic
+            Resource: !Ref rAlarmTopic
             Condition:
               ArnEquals:
                 "aws:SourceArn":
-                  - !GetAtt DecryptionVpcAlarm.Arn
-                  - !GetAtt DecryptionNoVpcAlarm.Arn
+                  - !GetAtt rDecryptionVpcAlarm.Arn
+                  - !GetAtt rDecryptionNoVpcAlarm.Arn
               StringEquals:
                 "aws:SourceAccount": !Ref "AWS::AccountId"
       Topics:
-        - !Ref AlarmTopic
+        - !Ref rAlarmTopic
 
-  AlarmEmailSubscription:
+  rAlarmEmailSubscription:
     Type: "AWS::SNS::Subscription"
     Condition: cHasEmailAddress
     Properties:
       Endpoint: !Ref pEmailAddress
       Protocol: email
-      TopicArn: !Ref AlarmTopic
+      TopicArn: !Ref rAlarmTopic
 
 Outputs:
-  AlarmTopicArn:
+  oAlarmTopicArn:
     Description: Alarm SNS Topic ARN
-    Value: !Ref AlarmTopic
+    Value: !Ref rAlarmTopic
