@@ -23,7 +23,7 @@ clap = { version = "=4.5.21", default-features = false, features = ["std", "deri
 fastrand = { version = "=2.2.0", default-features = false }
 serde = { version = "=1.0.215", default-features = false, features = ["derive"] }
 serde_json = { version = "=1.0.133", default-features = false }
-thiserror = { version = "=1.0.66", default-features = false }
+thiserror = { version = "=2.0.3", default-features = false }
 tokio = { version = "=1.41.1", default-features = false, features = ["rt-multi-thread", "process", "tracing"] }
 tracing = { version = "=0.1.40", default-features = false, features = ["log"] }
 tracing-subscriber = { version = "=0.3.18", default-features = false, features = ["ansi", "env-filter", "fmt", "json"] }
