@@ -17,7 +17,7 @@ path = "src/main.rs"
 anyhow = { version = "=1.0.93", default-features = false }
 aws-config = { version = "=1.5.10", default-features = false, features = ["rustls", "rt-tokio", "behavior-version-latest"] }
 aws-credential-types = { version = "=1.2.1", default-features = false }
-axum = { version = "=0.7.7", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
+axum = { version = "=0.7.8", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
 byteorder = { version = "=1.5.0", default-features = false }
 clap = { version = "=4.5.21", default-features = false, features = ["std", "derive", "env"] }
 fastrand = { version = "=2.2.0", default-features = false }

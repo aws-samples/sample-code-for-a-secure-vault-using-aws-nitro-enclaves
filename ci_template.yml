@@ -775,6 +775,7 @@ Resources:
                     {
                       "pVpcId": "${pVpcId}",
                       "pSubnetIds": "${pSubnetIds}",
+                      "pVpcCidr": "${pVpcCidr}",
                       "pEncryptionKeyArn": "${pEncryptionKeyArn}",
                       "pDomainName": "${pDomainName}",
                       "pPermissionsBoundaryArn": "${rPermissionsBoundary}",
@@ -805,6 +806,7 @@ Resources:
                     {
                       "pVpcId": "${pVpcId}",
                       "pSubnetIds": "${pSubnetIds}",
+                      "pVpcCidr": "${pVpcCidr}",
                       "pEncryptionKeyArn": "${pEncryptionKeyArn}",
                       "pPermissionsBoundaryArn": "${rPermissionsBoundary}",
                       "pCodeSigningConfigArn": "${rCodeSigningConfig.CodeSigningConfigArn}",
