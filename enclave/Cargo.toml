@@ -21,6 +21,6 @@ chrono = { version = "=0.4.38", default-features = false, features = ["now"] }
 data-encoding = { version = "=2.6.0", default-features = false, features = ["alloc"] }
 serde = { version = "=1.0.215", default-features = false, features = ["derive"] }
 serde_json = { version = "=1.0.133", default-features = false }
-rustls = { version = "=0.23.18", default-features = false, features = ["aws_lc_rs"] }
+rustls = { version = "=0.23.19", default-features = false, features = ["aws_lc_rs"] }
 vsock = { version = "=0.5.1", default-features = false }
 zeroize = { version = "=1.8.1", default-features = false, features = ["zeroize_derive"] }
