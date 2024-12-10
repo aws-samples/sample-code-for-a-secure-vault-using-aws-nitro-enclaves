@@ -276,14 +276,14 @@ Resources:
   rDependencyLayer:
     Type: "AWS::Serverless::LayerVersion"
     Metadata:
-      BuildMethod: python3.12
+      BuildMethod: python3.13
       BuildArchitecture: arm64
     Properties:
       LicenseInfo: MIT-0
       CompatibleArchitectures:
         - arm64
       CompatibleRuntimes:
-        - python3.12
+        - python3.13
       ContentUri: dependencies
       Description: !Sub "DO NOT DELETE - ${AWS::StackName} - Python Dependencies"
       RetentionPolicy: Delete
@@ -391,7 +391,7 @@ Resources:
       MemorySize: 1024 # megabytes
       PropagateTags: true
       Role: !GetAtt rApiFunctionRole.Arn
-      Runtime: python3.12
+      Runtime: python3.13
       Timeout: 10 # seconds
       Tracing: Active
       VersionDescription: !Sub "${AWS::StackName} - API"
