@@ -95,7 +95,7 @@ Resources:
                 Resource: !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:internet-gateway/*"
               - Effect: Allow
                 Action: "ec2:CreateNatGateway"
-                Resource: !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:natgateway/*"
+                Resource: !Sub "arn:${AWS::Partition}:ec2:*:${AWS::AccountId}:natgateway/*"
               - Effect: Allow
                 Action:
                   - "ec2:AssociateRouteTable"
