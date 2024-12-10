@@ -241,7 +241,13 @@ Resources:
       LifecycleConfiguration:
         Rules:
           - ExpirationInDays: 30
-            Id: RetentionRule
+            Id: ExpireAfter30Days
+            Status: Enabled
+          - AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+            Id: ExpireNonCurrentAndIncompleteMultipartUpload
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 1
             Status: Enabled
       ObjectLockEnabled: false
       OwnershipControls:
