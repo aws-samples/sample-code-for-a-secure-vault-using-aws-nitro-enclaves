@@ -1158,68 +1158,47 @@ Resources:
     Properties:
       Definition:
         StartAt: GetMeasurements
+        QueryLanguage: JSONata
         States:
           GetMeasurements:
             Type: Task
             Resource: "arn:aws:states:::aws-sdk:secretsmanager:getSecretValue"
-            Parameters:
+            Arguments:
               SecretId: "${SecretId}"
-            ResultSelector:
-              "Measurements.$": "States.StringToJson($.SecretString)"
-            OutputPath: "$.Measurements"
+            Output: "{% $parse($states.result.SecretString) %}"
             Next: BuildCondition
           BuildCondition:
             Type: Pass
-            InputPath: "$.Measurements"
-            Parameters:
-              StringEqualsIgnoreCase:
-                "kms:RecipientAttestation:ImageSha384.$": "$.PCR0"
-                "kms:RecipientAttestation:PCR1.$": "$.PCR1"
-                "kms:RecipientAttestation:PCR2.$": "$.PCR2"
-                "kms:RecipientAttestation:PCR3.$": "$.PCR3"
-                "kms:RecipientAttestation:PCR8.$": "$.PCR8"
-            ResultPath: "$.BuildCondition.Condition"
+            Assign:
+              BuildCondition:
+                Condition:
+                  StringEqualsIgnoreCase:
+                    "kms:RecipientAttestation:ImageSha384": "{% $states.input.Measurements.PCR0 %}" # EIF hash
+                    "kms:RecipientAttestation:PCR1": "{% $states.input.Measurements.PCR1 %}" # Linux kernel and bootstrap
+                    "kms:RecipientAttestation:PCR2": "{% $states.input.Measurements.PCR2 %}" # Application
+                    "kms:RecipientAttestation:PCR3": "{% $states.input.Measurements.PCR3 %}" # IAM role for parent instance
+                    "kms:RecipientAttestation:PCR8": "{% $states.input.Measurements.PCR8 %}" # Enclave image file signing certificate
             Next: GetKeyPolicy
           GetKeyPolicy:
             Type: Task
             Resource: "arn:aws:states:::aws-sdk:kms:getKeyPolicy"
-            Parameters:
+            Arguments:
               KeyId: "${KeyArn}"
               PolicyName: default
-            ResultSelector:
-              "Policy.$": "States.StringToJson($.Policy)"
-            ResultPath: "$.GetKeyPolicy"
-            Next: GetStatements
-          GetStatements:
+            Output:
+              KeyPolicy: "{% $parse($states.result.Policy) %}"
+            Next: MergeStatements
+          MergeStatements:
             Type: Pass
-            Parameters:
-              "Statement0.$": "$.GetKeyPolicy.Policy.Statement[0]" # Sid:"EnforceIdentityPerimeter"
-              "Statement1.$": "$.GetKeyPolicy.Policy.Statement[1]" # Sid:"EnforceConfusedDeputyProtection"
-              "Statement2.$": "$.GetKeyPolicy.Policy.Statement[2]" # Sid:"EnforceNetworkPerimeter"
-              "Statement3.$": "$.GetKeyPolicy.Policy.Statement[3]" # Sid:"Enable IAM User Permissions"
-              "Statement4.$": "$.GetKeyPolicy.Policy.Statement[4]" # Sid:"Allow access for Key Administrators"
-              "Statement5.$": "$.GetKeyPolicy.Policy.Statement[5]" # Sid:"AllowEncryptByLambda"
-              "Statement6.$": "$.GetKeyPolicy.Policy.Statement[6]" # Sid:"AllowDecryptByEnclave"
-            ResultPath: "$.GetStatements"
-            Next: UpdateStatement
-          UpdateStatement:
-            Type: Pass
-            Parameters:
-              "Statement.$": "States.JsonMerge($.GetStatements.Statement6, $.BuildCondition, false)"
-            ResultPath: "$.UpdateStatement"
-            Next: UpdateStatements
-          UpdateStatements:
-            Type: Pass
-            Parameters:
-              "Statement.$": "States.Array($.GetStatements.Statement0, $.GetStatements.Statement1, $.GetStatements.Statement2, $.GetStatements.Statement3, $.GetStatements.Statement4, $.GetStatements.Statement5, $.UpdateStatement.Statement)"
-            ResultPath: "$.UpdateStatements"
+            Output:
+              KeyPolicy: "{% $states.input.KeyPolicy ~> |Statement[Sid='AllowDecryptByEnclave']|$BuildCondition| %}"
             Next: UpdatePolicy
           UpdatePolicy:
             Type: Task
             Resource: "arn:aws:states:::aws-sdk:kms:putKeyPolicy"
-            Parameters:
+            Arguments:
               KeyId: "${KeyArn}"
-              "Policy.$": "States.JsonToString(States.JsonMerge($.GetKeyPolicy.Policy, $.UpdateStatements, false))"
+              Policy: "{% $states.input.KeyPolicy %}"
               PolicyName: default
             End: true
       DefinitionSubstitutions:
