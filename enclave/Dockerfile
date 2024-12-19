@@ -103,7 +103,7 @@ RUN cmake \
 RUN cmake --build aws-c-compression/build --parallel $(nproc) --target install
 
 # AWS-C-HTTP
-RUN git clone --depth 1 -b v0.7.6 https://github.com/awslabs/aws-c-http.git
+RUN git clone --depth 1 -b v0.6.19 https://github.com/awslabs/aws-c-http.git
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
@@ -140,7 +140,7 @@ RUN cd aws-nitro-enclaves-nsm-api \
     && mv target/$TARGETPLATFORM/release/nsm.h /usr/include/
 
 # AWS Nitro Enclaves SDK
-RUN git clone --depth 1 -b v0.4.1 "https://github.com/aws/aws-nitro-enclaves-sdk-c"
+RUN git clone --depth 1 -b v0.4.2 "https://github.com/aws/aws-nitro-enclaves-sdk-c"
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
