@@ -140,7 +140,7 @@ RUN cd aws-nitro-enclaves-nsm-api \
     && mv target/$TARGETPLATFORM/release/nsm.h /usr/include/
 
 # AWS Nitro Enclaves SDK
-RUN git clone --depth 1 -b v0.4.1 "https://github.com/aws/aws-nitro-enclaves-sdk-c"
+RUN git clone --depth 1 -b v0.4.2 "https://github.com/aws/aws-nitro-enclaves-sdk-c"
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
