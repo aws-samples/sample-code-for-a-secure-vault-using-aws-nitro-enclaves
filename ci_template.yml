@@ -1171,13 +1171,12 @@ Resources:
             Type: Pass
             Assign:
               BuildCondition:
-                Condition:
-                  StringEqualsIgnoreCase:
-                    "kms:RecipientAttestation:ImageSha384": "{% $states.input.Measurements.PCR0 %}" # EIF hash
-                    "kms:RecipientAttestation:PCR1": "{% $states.input.Measurements.PCR1 %}" # Linux kernel and bootstrap
-                    "kms:RecipientAttestation:PCR2": "{% $states.input.Measurements.PCR2 %}" # Application
-                    "kms:RecipientAttestation:PCR3": "{% $states.input.Measurements.PCR3 %}" # IAM role for parent instance
-                    "kms:RecipientAttestation:PCR8": "{% $states.input.Measurements.PCR8 %}" # Enclave image file signing certificate
+                StringEqualsIgnoreCase:
+                  "kms:RecipientAttestation:ImageSha384": "{% $states.input.Measurements.PCR0 %}" # EIF hash
+                  "kms:RecipientAttestation:PCR1": "{% $states.input.Measurements.PCR1 %}" # Linux kernel and bootstrap
+                  "kms:RecipientAttestation:PCR2": "{% $states.input.Measurements.PCR2 %}" # Application
+                  "kms:RecipientAttestation:PCR3": "{% $states.input.Measurements.PCR3 %}" # IAM role for parent instance
+                  "kms:RecipientAttestation:PCR8": "{% $states.input.Measurements.PCR8 %}" # Enclave image file signing certificate
             Next: GetKeyPolicy
           GetKeyPolicy:
             Type: Task
@@ -1191,7 +1190,7 @@ Resources:
           MergeStatements:
             Type: Pass
             Output:
-              KeyPolicy: "{% $states.input.KeyPolicy ~> |Statement[Sid='AllowDecryptByEnclave']|$BuildCondition| %}"
+              KeyPolicy: "{% $states.input.KeyPolicy ~> |Statement[Sid='AllowDecryptByEnclave'].Condition|$BuildCondition| %}"
             Next: UpdatePolicy
           UpdatePolicy:
             Type: Task
