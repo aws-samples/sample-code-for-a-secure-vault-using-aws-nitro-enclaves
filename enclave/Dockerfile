@@ -36,7 +36,6 @@ RUN git clone --depth 1 -b v1.12.0 https://github.com/awslabs/aws-lc.git
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DBUILD_SHARED_LIBS=1 \
     -DBUILD_TESTING=0 \
     -S aws-lc \
     -B aws-lc/build
@@ -47,7 +46,6 @@ RUN git clone --depth 1 -b v1.3.46 https://github.com/aws/s2n-tls.git
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DBUILD_SHARED_LIBS=1 \
     -DBUILD_TESTING=0 \
     -S s2n-tls \
     -B s2n-tls/build
@@ -58,7 +56,6 @@ RUN git clone --depth 1 -b v0.8.0 https://github.com/awslabs/aws-c-common.git
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DBUILD_SHARED_LIBS=1 \
     -DBUILD_TESTING=0 \
     -S aws-c-common \
     -B aws-c-common/build
@@ -69,7 +66,6 @@ RUN git clone --depth 1 -b v0.1.2 https://github.com/awslabs/aws-c-sdkutils
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DBUILD_SHARED_LIBS=1 \
     -DBUILD_TESTING=0 \
     -S aws-c-sdkutils \
     -B aws-c-sdkutils/build
@@ -80,7 +76,6 @@ RUN git clone --depth 1 -b v0.5.18 https://github.com/awslabs/aws-c-cal.git
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DBUILD_SHARED_LIBS=1 \
     -DBUILD_TESTING=0 \
     -S aws-c-cal \
     -B aws-c-cal/build
@@ -92,7 +87,6 @@ RUN cmake \
     -DUSE_VSOCK=1 \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DBUILD_SHARED_LIBS=1 \
     -DBUILD_TESTING=0 \
     -S aws-c-io \
     -B aws-c-io/build
@@ -103,7 +97,6 @@ RUN git clone --depth 1 -b v0.2.14 https://github.com/awslabs/aws-c-compression.
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DBUILD_SHARED_LIBS=1 \
     -DBUILD_TESTING=0 \
     -S aws-c-compression \
     -B aws-c-compression/build
@@ -114,7 +107,6 @@ RUN git clone --depth 1 -b v0.6.19 https://github.com/awslabs/aws-c-http.git
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DBUILD_SHARED_LIBS=1 \
     -DBUILD_TESTING=0 \
     -S aws-c-http \
     -B aws-c-http/build
@@ -125,7 +117,6 @@ RUN git clone --depth 1 -b v0.6.15 https://github.com/awslabs/aws-c-auth.git
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DBUILD_SHARED_LIBS=1 \
     -DBUILD_TESTING=0 \
     -S aws-c-auth \
     -B aws-c-auth/build
@@ -136,7 +127,6 @@ RUN git clone --depth 1 -b json-c-0.18-20240915 https://github.com/json-c/json-c
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DBUILD_SHARED_LIBS=1 \
     -DBUILD_TESTING=0 \
     -S json-c \
     -B json-c/build
