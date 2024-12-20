@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - jp-bake
   pull_request:
     branches:
       - main
+      - jp-bake
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}
@@ -15,6 +17,7 @@ concurrency:
 env:
   RUST_BACKTRACE: 1
   CARGO_TERM_COLOR: never
+  NO_COLOR: 1
 
 jobs:
   docker:

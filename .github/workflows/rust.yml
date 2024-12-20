@@ -15,6 +15,7 @@ concurrency:
 env:
   RUST_BACKTRACE: 1
   CARGO_TERM_COLOR: never
+  NO_COLOR: 1
 
 jobs:
   test:
