@@ -32,7 +32,7 @@ RUN ln -s /usr/lib /usr/lib64
 WORKDIR /tmp/crt-builder
 
 # Build AWS libcrypto
-RUN git clone --depth 1 -b v1.12.0 https://github.com/awslabs/aws-lc.git
+RUN git clone --depth 1 -b v1.41.1 https://github.com/awslabs/aws-lc.git
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
