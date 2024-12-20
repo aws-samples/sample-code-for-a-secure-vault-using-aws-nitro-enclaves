@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - jp-more-tweaks
   pull_request:
     branches:
       - main
+      - jp-more-tweaks
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}
@@ -18,7 +20,7 @@ env:
 
 jobs:
   docker:
-    if: github.repository_owner == 'aws-samples'
+    # if: github.repository_owner == 'aws-samples'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,3 +31,5 @@ jobs:
         uses: docker/bake-action@3fc70e1131fee40a422dd8dd0ff22014ae20a1f3 # v5.11.0
         env:
           SOURCE_DATE_EPOCH: 0
+        with:
+          push: false
