@@ -4,11 +4,9 @@ on:
   push:
     branches:
       - main
-      - jp-more-tweaks
   pull_request:
     branches:
       - main
-      - jp-more-tweaks
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}
@@ -20,7 +18,7 @@ env:
 
 jobs:
   docker:
-    # if: github.repository_owner == 'aws-samples'
+    if: github.repository_owner == 'aws-samples'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

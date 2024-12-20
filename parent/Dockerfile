@@ -4,7 +4,7 @@
 ####################################################################################################
 ## Chef image
 ####################################################################################################
-FROM public.ecr.aws/docker/library/rust:latest as chef
+FROM public.ecr.aws/docker/library/rust:latest AS chef
 ARG TARGETPLATFORM
 
 WORKDIR /app
@@ -15,14 +15,14 @@ RUN cargo install cargo-chef --locked
 ####################################################################################################
 ## Planner image
 ####################################################################################################
-FROM chef as planner
+FROM chef AS planner
 COPY . .
 RUN cargo chef prepare  --recipe-path recipe.json
 
 ####################################################################################################
 ## Builder image
 ####################################################################################################
-FROM chef as builder
+FROM chef AS builder
 ARG TARGETPLATFORM
 
 COPY --from=planner /app/recipe.json recipe.json
