@@ -6,7 +6,7 @@
 ##
 ## based on https://github.com/aws/aws-nitro-enclaves-acm/blob/main/env/enclave/Dockerfile
 ####################################################################################################
-FROM public.ecr.aws/docker/library/rust:alpine as kmstool
+FROM public.ecr.aws/docker/library/rust:alpine AS kmstool
 
 ARG TARGETPLATFORM
 ENV RUSTFLAGS="-C target-feature=-crt-static"
@@ -32,7 +32,7 @@ RUN ln -s /usr/lib /usr/lib64
 WORKDIR /tmp/crt-builder
 
 # Build AWS libcrypto
-RUN git clone --depth 1 -b v1.12.0 https://github.com/awslabs/aws-lc.git
+RUN git clone --depth 1 -b v1.41.1 https://github.com/awslabs/aws-lc.git
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
@@ -123,7 +123,7 @@ RUN cmake \
 RUN cmake --build aws-c-auth/build --parallel $(nproc) --target install
 
 # JSON-C library
-RUN git clone --depth 1 -b json-c-0.16-20220414 https://github.com/json-c/json-c.git
+RUN git clone --depth 1 -b json-c-0.18-20240915 https://github.com/json-c/json-c.git
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
@@ -134,6 +134,7 @@ RUN cmake --build json-c/build --parallel $(nproc) --target install
 
 # NSM LIB
 RUN git clone --depth 1 -b v0.4.0 "https://github.com/aws/aws-nitro-enclaves-nsm-api"
+RUN rustup target add $TARGETPLATFORM
 RUN cd aws-nitro-enclaves-nsm-api \
     && PATH="$PATH:/root/.cargo/bin" cargo build --release --target $TARGETPLATFORM --jobs $(nproc) -p nsm-lib \
     && mv target/$TARGETPLATFORM/release/libnsm.so /usr/lib/ \
@@ -152,22 +153,25 @@ RUN cmake --build aws-nitro-enclaves-sdk-c/build --parallel $(nproc) --target in
 ####################################################################################################
 ## Chef image
 ####################################################################################################
-FROM public.ecr.aws/docker/library/rust:alpine as chef
+FROM public.ecr.aws/docker/library/rust:alpine AS chef
+ARG TARGETPLATFORM
+
 WORKDIR /app
 RUN apk add --no-cache build-base
+RUN rustup target add $TARGETPLATFORM
 RUN cargo install cargo-chef --locked
 
 ####################################################################################################
 ## Planner image
 ####################################################################################################
-FROM chef as planner
+FROM chef AS planner
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 ####################################################################################################
 ## Builder image
 ####################################################################################################
-FROM chef as builder
+FROM chef AS builder
 ARG TARGETPLATFORM
 
 COPY --from=planner /app/recipe.json recipe.json
