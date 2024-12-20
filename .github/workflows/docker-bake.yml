@@ -4,11 +4,9 @@ on:
   push:
     branches:
       - main
-      - jp-bake
   pull_request:
     branches:
       - main
-      - jp-bake
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}
