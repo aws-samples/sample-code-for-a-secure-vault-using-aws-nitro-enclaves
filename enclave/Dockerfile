@@ -69,6 +69,7 @@ RUN git clone --depth 1 -b v0.1.2 https://github.com/awslabs/aws-c-sdkutils
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
+    -DBUILD_SHARED_LIBS=1 \
     -DBUILD_TESTING=0 \
     -S aws-c-sdkutils \
     -B aws-c-sdkutils/build
