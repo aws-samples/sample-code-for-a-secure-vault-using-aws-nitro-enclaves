@@ -1,4 +1,4 @@
-name: enclave bake
+name: docker bake
 
 on:
   push:
