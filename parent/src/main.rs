@@ -23,7 +23,7 @@ async fn main() -> Result<(), Error> {
         // show up in a confusing manner in CloudWatch logs.
         .with_ansi(false)
         // disabling time is handy because CloudWatch will add the ingestion time.
-        //.without_time()
+        .without_time()
         // remove the name of the function from every log entry
         .with_target(false)
         .init();

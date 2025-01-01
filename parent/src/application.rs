@@ -18,7 +18,7 @@ pub struct AppState {
 
 pub struct Application {
     port: u16,
-    server: Serve<Router, Router>,
+    server: Serve<TcpListener, Router, Router>,
 }
 
 impl Application {
@@ -41,7 +41,7 @@ impl Application {
     }
 
     pub async fn run_until_stopped(self) -> Result<(), std::io::Error> {
-        self.server.tcp_nodelay(true).await
+        self.server.await
     }
 }
 
@@ -50,7 +50,7 @@ pub fn run(
     listener: TcpListener,
     options: ParentOptions,
     enclaves: Arc<Enclaves>,
-) -> Result<Serve<Router, Router>, std::io::Error> {
+) -> Result<Serve<TcpListener, Router, Router>, std::io::Error> {
     let state = Arc::new(AppState { options, enclaves });
 
     let app = Router::new()
