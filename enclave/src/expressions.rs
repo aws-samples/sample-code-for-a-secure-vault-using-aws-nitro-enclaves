@@ -185,7 +185,7 @@ mod tests {
         let expected: BTreeMap<String, Value> = BTreeMap::from([
             ("first_name".into(), "Bob".into()),
             ("birth_date".into(), "1979-01-01".into()),
-            ("age".into(), 45.into()),
+            ("age".into(), 46.into()),
         ]);
 
         let actual = execute_expressions(&fields, &expressions).unwrap();
