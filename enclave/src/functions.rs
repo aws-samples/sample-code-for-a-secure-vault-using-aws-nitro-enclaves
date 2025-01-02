@@ -7,10 +7,10 @@ use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone, Utc};
 use data_encoding::{BASE64, HEXLOWER};
 use std::sync::Arc;
 
-/// Default functions available:
-/// https://github.com/clarkmcc/cel-rust/blob/master/interpreter/src/context.rs#L169
+// Default functions available:
+// https://github.com/clarkmcc/cel-rust/blob/master/interpreter/src/context.rs#L169
 
-/// String Functions
+// String Functions
 
 pub fn is_empty(This(this): This<Arc<String>>) -> bool {
     this.is_empty()
@@ -24,7 +24,7 @@ pub fn to_uppercase(This(this): This<Arc<String>>) -> String {
     this.to_uppercase()
 }
 
-/// Hash Functions
+// Hash Functions
 
 pub fn hmac_sha256(This(this): This<Arc<String>>) -> String {
     let digest = digest::digest(&digest::SHA256, this.as_bytes());
@@ -41,7 +41,7 @@ pub fn hmac_sha512(This(this): This<Arc<String>>) -> String {
     HEXLOWER.encode(digest.as_ref())
 }
 
-/// Hex Functions
+// Hex Functions
 
 pub fn hex_encode(This(this): This<Arc<String>>) -> String {
     HEXLOWER.encode(this.as_bytes())
@@ -57,7 +57,7 @@ pub fn hex_decode(ftx: &FunctionContext, This(this): This<Arc<String>>) -> Resol
     }
 }
 
-/// Base64 Functions
+// Base64 Functions
 
 pub fn base64_encode(This(this): This<Arc<String>>) -> String {
     BASE64.encode(this.as_bytes())
@@ -73,7 +73,7 @@ pub fn base64_decode(ftx: &FunctionContext, This(this): This<Arc<String>>) -> Re
     }
 }
 
-/// Datetime Functions
+// Datetime Functions
 
 pub fn date(ftx: &FunctionContext, This(this): This<Arc<String>>) -> ResolveResult {
     match NaiveDate::parse_from_str(&this, "%Y-%m-%d") {

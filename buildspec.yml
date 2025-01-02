@@ -7,17 +7,14 @@ phases:
   build:
     commands:
       - echo Build started on `date`
-      - cd parent
-      - make build-docker
-      - CONTAINER_ID=$(docker create parent-vault:latest)
-      - docker cp $CONTAINER_ID:/app/parent-vault ./parent-vault
-      - docker rm $CONTAINER_ID
-      - cd ../enclave
-      - make build-docker
+      - docker buildx bake
       - echo Build completed on `date`
   post_build:
     commands:
       - '[ ${CODEBUILD_BUILD_SUCCEEDING:-0} -eq 1 ] || exit 1'
+      - CONTAINER_ID=$(docker create parent-vault:latest)
+      - docker cp $CONTAINER_ID:/app/parent-vault ./parent-vault
+      - docker rm $CONTAINER_ID
       - echo "${PRIVATE_KEY}" > nitro_vault_key.pem
       - openssl req -new -key nitro_vault_key.pem -sha384 -nodes -subj "/CN=AWS/C=US/ST=WA/L=Seattle/O=Amazon/OU=AWS" -out nitro_vault_csr.pem
       - openssl x509 -req -days 365 -in nitro_vault_csr.pem -out nitro_vault_cert.pem -sha384 -signkey nitro_vault_key.pem
@@ -29,8 +26,8 @@ phases:
 artifacts:
   discard-paths: yes
   files:
-    - parent/parent-vault  # Used by Deploy:DeployVault
-    - enclave/enclave-vault.eif  # Used by Deploy:DeployVault
+    - parent-vault  # Used by Deploy:DeployVault
+    - enclave-vault.eif  # Used by Deploy:DeployVault
     - vault_template.yml  # Used by Deploy:DeployVault
     - vault_template_configuration.json  # Used by Deploy:DeployVault
 
