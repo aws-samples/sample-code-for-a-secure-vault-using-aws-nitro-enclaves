@@ -48,8 +48,7 @@ Globals:
         TABLE_NAME: !Ref pTableName
     Handler: app.lambda_handler.handler
     Layers:
-      #- !Ref rDependencyLayer
-      - "{{resolve:ssm:/aws/service/powertools/python/arm64/python3.13/latest}}"
+      - !Ref rDependencyLayer
     MemorySize: 128  # megabytes
     PropagateTags: true
     ReservedConcurrentExecutions: 1
@@ -295,20 +294,20 @@ Resources:
       Roles:
         - !Ref rEventBridgeSchedulerRole
 
-  #rDependencyLayer:
-  #  Type: "AWS::Serverless::LayerVersion"
-  #  Metadata:
-  #    BuildMethod: python3.12
-  #    BuildArchitecture: arm64
-  #  Properties:
-  #    LicenseInfo: MIT-0
-  #    CompatibleArchitectures:
-  #      - arm64
-  #    CompatibleRuntimes:
-  #      - python3.12
-  #    ContentUri: dependencies
-  #    Description: !Sub "DO NOT DELETE - ${AWS::StackName} - Python Dependencies"
-  #    RetentionPolicy: Delete
+  rDependencyLayer:
+    Type: "AWS::Serverless::LayerVersion"
+    Metadata:
+      BuildMethod: python3.13
+      BuildArchitecture: arm64
+    Properties:
+      LicenseInfo: MIT-0
+      CompatibleArchitectures:
+        - arm64
+      CompatibleRuntimes:
+        - python3.13
+      ContentUri: dependencies
+      Description: !Sub "DO NOT DELETE - ${AWS::StackName} - Python Dependencies"
+      RetentionPolicy: Delete
 
   rCanaryVpcFunction:
     Type: "AWS::Serverless::Function"

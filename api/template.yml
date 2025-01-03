@@ -388,7 +388,6 @@ Resources:
       Handler: app.lambda_handler.handler
       Layers:
         - !Ref rDependencyLayer
-        - "{{resolve:ssm:/aws/service/powertools/python/arm64/python3.13/latest}}"
       MemorySize: 1024 # megabytes
       PropagateTags: true
       Role: !GetAtt rApiFunctionRole.Arn
