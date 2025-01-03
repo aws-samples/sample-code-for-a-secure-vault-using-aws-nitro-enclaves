@@ -4,6 +4,8 @@ phases:
   install:
     runtime-versions:
       python: 3.13
+    commands:
+      - python3 -m pip install -U aws-sam-cli
   pre_build:
     commands:
       - cd api

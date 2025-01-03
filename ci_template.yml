@@ -925,6 +925,9 @@ Resources:
               - Effect: Allow
                 Action: "signer:DescribeSigningJob"
                 Resource: !Sub "arn:${AWS::Partition}:signer:${AWS::Region}:${AWS::AccountId}:/signing-jobs/*"
+              - Effect: Allow
+                Action: "ssm:GetParameters"
+                Resource: !Sub "arn:${AWS::Partition}:ssm:*:017000801446:parameter/aws/service/powertools/*"
       Tags:
         - Key: "aws-cloudformation:stack-name"
           Value: !Ref "AWS::StackName"
