@@ -3,7 +3,9 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      python: 3.12
+      python: 3.13
+    commands:
+      - python3 -m pip install -U aws-sam-cli
   pre_build:
     commands:
       - cd api
@@ -27,5 +29,6 @@ artifacts:
 cache:
   files:
     - '/root/.cache/**/*'
+    - '/root/.pyenv/**/*'
     - '/root/api/.aws-sam/**/*'
     - '/root/api/.venv/**/*'

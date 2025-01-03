@@ -1038,7 +1038,7 @@ Resources:
       Source:
         BuildSpec: buildspec.yml
         Type: CODEPIPELINE
-      TimeoutInMinutes: 30
+      TimeoutInMinutes: 20
 
   rApiCodeBuildProject:
     Type: "AWS::CodeBuild::Project"
@@ -1074,7 +1074,7 @@ Resources:
       Source:
         BuildSpec: api/buildspec.yml
         Type: CODEPIPELINE
-      TimeoutInMinutes: 5
+      TimeoutInMinutes: 10
 
   rCanaryCodeBuildProject:
     Type: "AWS::CodeBuild::Project"
@@ -1110,7 +1110,7 @@ Resources:
       Source:
         BuildSpec: canary/buildspec.yml
         Type: CODEPIPELINE
-      TimeoutInMinutes: 5
+      TimeoutInMinutes: 10
 
   rStepFunctionsRole:
     Type: "AWS::IAM::Role"
