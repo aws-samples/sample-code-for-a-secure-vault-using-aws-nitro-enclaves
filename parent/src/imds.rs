@@ -1,9 +1,10 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
-use aws_config::imds::client::Client;
+use aws_config::imds::client::{Client, ImdsResponseRetryClassifier};
 use aws_config::imds::credentials::ImdsCredentialsProvider;
 use aws_credential_types::provider::ProvideCredentials;
+use aws_smithy_runtime_api::client::retries::classifiers::SharedRetryClassifier;
 
 use crate::constants;
 use crate::errors::AppError;
@@ -14,6 +15,9 @@ pub async fn load_credentials(profile: Option<String>) -> Result<Credential, App
         .endpoint("http://169.254.169.254:80") // hardcode IMDS IPv4 address to avoid checking for credentials on the file system
         .expect("valid URL")
         .token_ttl(constants::IMDS_TOKEN_TTL)
+        .retry_classifier(SharedRetryClassifier::new(
+            ImdsResponseRetryClassifier::default().with_retry_connect_timeouts(true),
+        ))
         .build();
 
     let imds = {
