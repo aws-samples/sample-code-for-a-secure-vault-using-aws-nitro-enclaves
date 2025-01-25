@@ -43,7 +43,7 @@ printf "[!] Deploying ${VPC_STACK_NAME} stack..."
 aws cloudformation deploy --stack-name "${VPC_STACK_NAME}" --template-file vpc_template.yml \
   --parameter-overrides \
     "pDomainName=${DOMAIN_NAME}" \
-  --tags "AppManagerCFNStackKey=nitro-vault"
+  --tags "AppManagerCFNStackKey=${VPC_STACK_NAME}"
 
 VPC_ID=$(get-output "${VPC_STACK_NAME}" "oVpcId")
 VPC_CIDR=$(get-output "${VPC_STACK_NAME}" "oVpcCidrBlock")
@@ -55,7 +55,7 @@ printf "\n[!] Deploying ${KEY_STACK_NAME} stack..."
 aws cloudformation deploy --stack-name "${KEY_STACK_NAME}" --template-file kms_template.yml \
   --parameter-overrides \
     "pVpcId=${VPC_ID}" \
-  --tags "AppManagerCFNStackKey=nitro-vault"
+  --tags "AppManagerCFNStackKey=${KEY_STACK_NAME}"
 
 KEY_ARN=$(get-output "${KEY_STACK_NAME}" "oEncryptionKeyArn")
 
@@ -74,7 +74,7 @@ aws cloudformation deploy --stack-name "${CI_STACK_NAME}" --template-file ci_tem
     "pBranchName=${GITHUB_BRANCH}" \
     "pKmsCloudFormationStackName=${KEY_STACK_NAME}" \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-  --tags "AppManagerCFNStackKey=nitro-vault"
+  --tags "AppManagerCFNStackKey=${CI_STACK_NAME}"
 
 PIPELINE_NAME=$(get-output "${CI_STACK_NAME}" "oCodePipelineName")
 

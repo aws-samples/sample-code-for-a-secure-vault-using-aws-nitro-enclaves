@@ -1,6 +1,6 @@
 {
   "Tags": {
-    "AppManagerCFNStackKey": "nitro-vault"
+    "AppManagerCFNStackKey": "nitro-vault-ci-api"
   },
   "StackPolicy": {
     "Statement": [

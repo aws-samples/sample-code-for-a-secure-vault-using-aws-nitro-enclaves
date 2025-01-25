@@ -1,5 +1,5 @@
 {
   "Tags": {
-    "AppManagerCFNStackKey": "nitro-vault"
+    "AppManagerCFNStackKey": "nitro-vault-ci-canary"
   }
 }
