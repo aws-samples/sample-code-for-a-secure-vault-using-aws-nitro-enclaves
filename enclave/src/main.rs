@@ -13,6 +13,11 @@ use enclave_vault::{
 use rustls::crypto::hpke::HpkePrivateKey;
 use vsock::{VsockAddr, VsockListener, VsockStream, VMADDR_CID_ANY};
 
+// Avoid musl's default allocator due to terrible performance
+#[cfg(target_env = "musl")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 #[inline]
 fn parse_payload(payload_buffer: &[u8]) -> Result<EnclaveRequest> {
     let payload: EnclaveRequest = serde_json::from_slice(payload_buffer)

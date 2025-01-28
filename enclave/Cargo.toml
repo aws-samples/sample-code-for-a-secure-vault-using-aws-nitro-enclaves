@@ -24,3 +24,6 @@ serde_json = { version = "=1.0.137", default-features = false }
 rustls = { version = "=0.23.21", default-features = false, features = ["aws_lc_rs"] }
 vsock = { version = "=0.5.1", default-features = false }
 zeroize = { version = "=1.8.1", default-features = false, features = ["zeroize_derive"] }
+
+[target.'cfg(target_env = "musl")'.dependencies]
+mimalloc = "0.1.43"

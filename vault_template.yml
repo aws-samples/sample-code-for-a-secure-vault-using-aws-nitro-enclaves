@@ -170,6 +170,9 @@ Resources:
           - Effect: Allow
             Action: "s3:GetObject"
             Resource: !Sub "arn:${AWS::Partition}:s3:::${pArtifactBucketName}/${pArtifactObjectKey}"
+            Condition:
+              StringEquals:
+                "aws:ResourceAccount": !Ref "AWS::AccountId"
           - Effect: Allow
             Action:
               - "cloudformation:DescribeStackResource"
