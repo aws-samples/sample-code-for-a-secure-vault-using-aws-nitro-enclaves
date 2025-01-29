@@ -914,12 +914,6 @@ Resources:
                 Action: "s3:ListBucket"  # required for Lambda code signing
                 Resource: !GetAtt rArtifactBucket.Arn
               - Effect: Allow
-                Action: "secretsmanager:GetSecretValue"
-                Resource: !Ref rSigningSecret
-              - Effect: Allow
-                Action: "secretsmanager:PutSecretValue"
-                Resource: !Ref rMeasurementSecret
-              - Effect: Allow
                 Action: "signer:StartSigningJob"
                 Resource: !Ref rSigningProfile
               - Effect: Allow
@@ -936,6 +930,28 @@ Resources:
           Value: !Ref "AWS::StackName"
         - Key: "dp:exclude:network"
           Value: "true"
+
+  rSecretsManagerPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: SecretsManager
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "secretsmanager:GetSecretValue"
+            Resource: !Ref rSigningSecret
+            Condition:
+              ArnEquals:
+                "codebuild:projectArn": !GetAtt rVaultCodeBuildProject.Arn
+          - Effect: Allow
+            Action: "secretsmanager:PutSecretValue"
+            Resource: !Ref rMeasurementSecret
+            Condition:
+              ArnEquals:
+                "codebuild:projectArn": !GetAtt rVaultCodeBuildProject.Arn
+      Roles:
+        - !Ref rCodeBuildRole
 
   rCloudWatchLogsPolicy:
     Type: "AWS::IAM::Policy"
