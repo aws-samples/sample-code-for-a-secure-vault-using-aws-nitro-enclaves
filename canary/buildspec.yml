@@ -29,6 +29,5 @@ artifacts:
 cache:
   files:
     - '/root/.cache/**/*'
-    - '/root/.pyenv/**/*'
     - '/root/canary/.aws-sam/**/*'
     - '/root/canary/.venv/**/*'
