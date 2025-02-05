@@ -108,6 +108,95 @@ Resources:
       CodeSigningPolicies:
         UntrustedArtifactOnDeployment: Enforce
 
+  rSigningKey:
+    Type: "AWS::KMS::Key"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: F19
+            reason: "Disabling KMS key rotation"
+    Properties:
+      Description: !Sub "${AWS::StackName} - Signing Key"
+      Enabled: true
+      EnableKeyRotation: false
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnforceIdentityPerimeter
+            Effect: Deny
+            Principal: "*"
+            Action: "*"
+            Resource: "*"
+            Condition:
+              StringNotEqualsIfExists:
+                "aws:PrincipalAccount": !Ref "AWS::AccountId"
+              BoolIfExists:
+                "aws:PrincipalIsAWSService": "false"
+          - Sid: EnforceConfusedDeputyProtection
+            Effect: Deny
+            Principal: "*"
+            Action: "*"
+            Resource: "*"
+            Condition:
+              StringNotEqualsIfExists:
+                "aws:SourceAccount": !Ref "AWS::AccountId"
+              "Null":
+                "aws:SourceAccount": "false"
+              Bool:
+                "aws:PrincipalIsAWSService": "true"
+          - Sid: EnforceNetworkPerimeter
+            Effect: Deny
+            Principal: "*"
+            Action: "*"
+            Resource: "*"
+            Condition:
+              StringNotEqualsIfExists:
+                "aws:SourceVpc": !Ref pVpcId
+                "aws:PrincipalTag/dp:exclude:network": "true"
+              BoolIfExists:
+                "aws:PrincipalIsAWSService": "false"
+                "aws:ViaAWSService": "false"
+              ArnNotLikeIfExists:
+                "aws:PrincipalArn": !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/*"
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            NotAction: "kms:Sign"
+            Resource: "*"
+          - Sid: AllowSigningByCodeBuild
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt rCodeBuildRole.Arn
+            Action: "kms:Sign"
+            Resource: "*"
+            Condition:
+              StringEquals:
+                "kms:CallerAccount": !Ref "AWS::AccountId"
+                "kms:SigningAlgorithm": ECDSA_SHA_384
+      KeySpec: ECC_NIST_P384
+      KeyUsage: SIGN_VERIFY
+      PendingWindowInDays: 7
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rSigningKey
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rSigningKeyAlias:
+    Type: "AWS::KMS::Alias"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Properties:
+      AliasName: !Sub "alias/${AWS::StackName}"
+      TargetKeyId: !Ref rSigningKey
+
   rSigningSecret:
     Type: "AWS::SecretsManager::Secret"
     UpdateReplacePolicy: Delete
@@ -939,6 +1028,12 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
+            Action: "kms:Sign"
+            Resource: !GetAtt rSigningKey.Arn
+            Condition:
+              ArnEquals:
+                "codebuild:projectArn": !GetAtt rVaultCodeBuildProject.Arn
+          - Effect: Allow
             Action: "secretsmanager:GetSecretValue"
             Resource: !Ref rSigningSecret
             Condition:
@@ -1035,6 +1130,9 @@ Resources:
           - Name: PRIVATE_KEY
             Type: SECRETS_MANAGER
             Value: !Ref rSigningSecret
+          - Name: SIGNING_KEY_ARN
+            Type: PLAINTEXT
+            Value: !GetAtt rSigningKey.Arn
           - Name: MEASUREMENT_SECRET_ID
             Type: PLAINTEXT
             Value: !Ref rMeasurementSecret
