@@ -386,8 +386,8 @@ Resources:
                     include /etc/nginx/conf.d/*.conf;
 
                     server {
-                        listen       443 ssl http2;
-                        listen       [::]:443 ssl http2;
+                        listen       443 ssl;
+                        http2        on;
                         server_name  ${pDomainName};
                         root         /usr/share/nginx/html;
 
