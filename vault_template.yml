@@ -219,9 +219,6 @@ Resources:
               "aws-nitro-enclaves-cli": []
               "aws-nitro-enclaves-acm": []
               "amazon-cloudwatch-agent": []
-              "amazon-ssm-agent": []
-              "openssl-pkcs11": []
-              #  - "0.4.11-8.amzn2023.0.3" # downgrade due to https://github.com/aws/aws-nitro-enclaves-acm/issues/124#issuecomment-1811727731
               "nginx": []
               "unzip": []
           files:
@@ -230,14 +227,6 @@ Resources:
                 [Service]
                 Environment="HTTPS_PROXY=http://placeholder:8080/"
                 Environment="NO_PROXY=.s3.${AWS::Region}.amazonaws.com,kms.${AWS::Region}.amazonaws.com,iam.amazonaws.com"
-              owner: root
-              group: root
-              mode: "000644"
-            "/etc/nitro_enclaves/vsock-proxy.yaml":
-              content: !Sub |-
-                allowlist:
-                - {address: kms.${AWS::Region}.amazonaws.com, port: 443}
-                - {address: kms-fips.${AWS::Region}.amazonaws.com, port: 443}
               owner: root
               group: root
               mode: "000644"
