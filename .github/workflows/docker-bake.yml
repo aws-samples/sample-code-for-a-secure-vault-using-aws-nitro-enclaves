@@ -27,7 +27,7 @@ jobs:
       - name: Set up Docker buildx
         uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
       - name: Build
-        uses: docker/bake-action@7bff531c65a5cda33e52e43950a795b91d450f63 # v6.3.0
+        uses: docker/bake-action@4f08b22a19b3133912e9acbf7da9bfa25184a173 # v6.4.0
         env:
           SOURCE_DATE_EPOCH: 0
         with:
