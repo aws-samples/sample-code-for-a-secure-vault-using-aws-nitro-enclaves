@@ -57,5 +57,5 @@ async fn main() -> Result<(), Error> {
 
     let application = Application::build(options, enclaves).await.unwrap();
 
-    application.run_until_stopped().await.map_err(Error::from)
+    application.run_until_stopped().await
 }
