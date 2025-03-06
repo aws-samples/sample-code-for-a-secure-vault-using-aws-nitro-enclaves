@@ -3,10 +3,10 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{anyhow, bail, Error, Result};
+use anyhow::{Error, Result, anyhow, bail};
 use aws_lc_rs::signature::{
-    EcdsaSigningAlgorithm, ECDSA_P256_SHA256_ASN1_SIGNING, ECDSA_P384_SHA384_ASN1_SIGNING,
-    ECDSA_P521_SHA512_ASN1_SIGNING,
+    ECDSA_P256_SHA256_ASN1_SIGNING, ECDSA_P384_SHA384_ASN1_SIGNING, ECDSA_P521_SHA512_ASN1_SIGNING,
+    EcdsaSigningAlgorithm,
 };
 use data_encoding::HEXLOWER;
 use rustls::crypto::aws_lc_rs::hpke::{

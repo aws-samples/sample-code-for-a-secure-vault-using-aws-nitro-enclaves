@@ -1,7 +1,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use data_encoding::BASE64;
 
 #[inline]

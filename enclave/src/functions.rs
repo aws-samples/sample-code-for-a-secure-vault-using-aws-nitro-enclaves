@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT-0
 
 use aws_lc_rs::digest;
-use cel_interpreter::{extractors::This, FunctionContext, ResolveResult};
+use cel_interpreter::{FunctionContext, ResolveResult, extractors::This};
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone, Utc};
 use data_encoding::{BASE64, HEXLOWER};
 use std::sync::Arc;

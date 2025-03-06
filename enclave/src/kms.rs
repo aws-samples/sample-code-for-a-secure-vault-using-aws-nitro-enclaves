@@ -3,7 +3,7 @@
 
 use std::process::Command;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use aws_lc_rs::encoding::AsBigEndian;
 use aws_lc_rs::signature::EcdsaKeyPair;
 use rustls::crypto::hpke::HpkePrivateKey;

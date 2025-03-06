@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT-0
 
 use aws_credential_types::provider::error::CredentialsError;
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde_json::json;
 
 #[derive(thiserror::Error, Debug, PartialEq)]

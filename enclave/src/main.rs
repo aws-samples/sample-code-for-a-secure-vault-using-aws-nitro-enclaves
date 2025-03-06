@@ -1,7 +1,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
-use anyhow::{anyhow, Error, Result};
+use anyhow::{Error, Result, anyhow};
 use enclave_vault::{
     constants::ENCLAVE_PORT,
     expressions::execute_expressions,
@@ -11,7 +11,7 @@ use enclave_vault::{
     protocol::{recv_message, send_message},
 };
 use rustls::crypto::hpke::HpkePrivateKey;
-use vsock::{VsockAddr, VsockListener, VsockStream, VMADDR_CID_ANY};
+use vsock::{VMADDR_CID_ANY, VsockAddr, VsockListener, VsockStream};
 
 // Avoid musl's default allocator due to terrible performance
 #[cfg(target_env = "musl")]

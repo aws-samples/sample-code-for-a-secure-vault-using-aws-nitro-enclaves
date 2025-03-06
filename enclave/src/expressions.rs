@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use cel_interpreter::Value as celValue;
 use cel_interpreter::{Context, Program};
 use serde_json::Value;
