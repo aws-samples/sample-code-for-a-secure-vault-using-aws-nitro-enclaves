@@ -1,0 +1,822 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../architecture/">
+      
+      
+        <link rel="next" href="../post-deployment/">
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.7">
+    
+    
+      
+        <title>Deployment - AWS Nitro Enclaves Vault</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.8608ea7d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#deploying-the-solution" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="AWS Nitro Enclaves Vault" class="md-header__button md-logo" aria-label="AWS Nitro Enclaves Vault" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AWS Nitro Enclaves Vault
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Deployment
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="AWS Nitro Enclaves Vault" class="md-nav__button md-logo" aria-label="AWS Nitro Enclaves Vault" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    AWS Nitro Enclaves Vault
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Architecture
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Deployment Guide
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Deployment Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Deployment
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Deployment
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      Prerequisites
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deployment
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#post-deployment-guidance" class="md-nav__link">
+    <span class="md-ellipsis">
+      Post Deployment Guidance
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../post-deployment/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Post Deployment Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    User Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Security
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    FAQ
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../support/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Support
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../references/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    References
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      Prerequisites
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deployment
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#post-deployment-guidance" class="md-nav__link">
+    <span class="md-ellipsis">
+      Post Deployment Guidance
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="deploying-the-solution">Deploying the Solution<a class="headerlink" href="#deploying-the-solution" title="Permanent link">&para;</a></h1>
+<p>The solution is developed using <a href="https://aws.amazon.com/cloudformation/">AWS CloudFormation</a>, <a href="https://python.org">Python</a>, and <a href="https://www.rust-lang.org/">Rust</a>.</p>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
+<ul>
+<li>You will need an <a href="https://repost.aws/knowledge-center/create-and-activate-aws-account">AWS Account</a>.</li>
+<li><a href="https://aws.amazon.com/cli/">AWS CLI</a> installed and configured to use with your AWS account.</li>
+<li>Either an <a href="https://console.aws.amazon.com/iamv2/home?#/users/create">IAM User</a> or <a href="https://aws.amazon.com/iam/identity-center/">IAM Identity Center User</a> with the <code>AdministratorAccess</code> policy granted to your user. <em>Not recommended for a production environment.</em></li>
+</ul>
+<div class="admonition info">
+<p class="admonition-title">Info</p>
+<p>The solution includes a CloudFormation template called <a href="https://github.com/aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves/blob/main/deploy_template.yml">deploy_template.yml</a> that will create an IAM role with the necessary permissions to deploy this solution.</p>
+<p>After deploying the CloudFormation template, you can <a href="https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-role.html">use an IAM role with the AWS CLI</a> by configuring an additional profile in <code>~/.aws/config</code> such as:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[profile nitro-vault]
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>role_arn=arn:aws:iam::123456789012:role/nitro-vault-deployment-rDeploymentRole-XXXXXXXX
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>source_profile=default
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>role_session_name=nitro-vault
+</code></pre></div>
+<p>Then in step #2 below, set <code>AWS_PROFILE=nitro-vault</code> to use the new profile.</p>
+</div>
+<h2 id="deployment">Deployment<a class="headerlink" href="#deployment" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p>GitHub: <a href="https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo#forking-a-repository">Fork the repository to your personal account</a>. This is required so AWS CodePipeline can access the repository and checkout the source code.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/&lt;YourGitHubUserName&gt;/sample-code-for-a-secure-vault-using-aws-nitro-enclaves
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">cd</span><span class="w"> </span>sample-code-for-a-secure-vault-using-aws-nitro-enclaves
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>cp<span class="w"> </span>.env.template<span class="w"> </span>.env
+</code></pre></div>
+</li>
+<li>
+<p>Edit the <code>.env</code> file and set these variables:</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th style="text-align: center;">Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AWS_PROFILE</td>
+<td style="text-align: center;">-</td>
+<td>The name of the AWS CLI profile with the credentials and options to use.</td>
+</tr>
+<tr>
+<td>AWS_REGION</td>
+<td style="text-align: center;">-</td>
+<td>The AWS SDK compatible environment variable that specifies the AWS Region to send the request to.</td>
+</tr>
+<tr>
+<td>HOSTED_ZONE_ID</td>
+<td style="text-align: center;">-</td>
+<td>Amazon Route 53 Hosted Zone ID</td>
+</tr>
+<tr>
+<td>DOMAIN_NAME</td>
+<td style="text-align: center;">-</td>
+<td>Sub-domain to create in the HOSTED_ZONE_ID for the internal vault API</td>
+</tr>
+<tr>
+<td>GITHUB_REPO</td>
+<td style="text-align: center;">-</td>
+<td>Personal fork of this repository (ex. aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves)</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition info">
+<p class="admonition-title">Info</p>
+<p>The <code>HOSTED_ZONE_ID</code> and <code>DOMAIN_NAME</code> are required because the solution issues a valid SSL/TLS certificate managed by the <a href="https://aws.amazon.com/certificate-manager/">AWS Certificate Manager</a> (ACM) for use on the EC2 instances for the Nitro Enclaves. The private key of the certificate is securely managed by <a href="https://docs.aws.amazon.com/enclaves/latest/user/nitro-enclave-refapp.html">ACM for Nitro Enclaves</a> and <a href="https://nginx.org">NGINX</a>. ACM for Nitro Enclaves takes care of automatically rotating the certificate.</p>
+</div>
+</li>
+<li>
+<p>You must add a new <a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html">tag</a> to the AWS IAM Principal (either an IAM User or IAM Role) you are using to deploy this solution. If you are using the IAM role created in the <code>deploy_template.yml</code> CloudFormation template, then this step has already been completed for you.</p>
+<p><img alt="IAM Tags" src="../images/iam_tags.png" /></p>
+<p>Create a new tag key called <code>network-perimeter-exception</code> with a value of <code>true</code>.</p>
+<div class="admonition info">
+<p class="admonition-title">Info</p>
+<p>This solution implements best practices regarding <a href="https://aws.amazon.com/identity/data-perimeters-on-aws/">data perimeters on AWS</a>. To learn more about building a data perimeter, please consult the <a href="https://docs.aws.amazon.com/whitepapers/latest/building-a-data-perimeter-on-aws/building-a-data-perimeter-on-aws.html">Building a Data Perimeter on AWS</a> whitepaper.</p>
+</div>
+</li>
+<li>
+<p>Execute the <code>deploy.sh</code> shell script to begin the deployment.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>&gt;<span class="w"> </span>./deploy.sh
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="o">[</span>!<span class="o">]</span><span class="w"> </span>Deploying<span class="w"> </span>nitro-vault-vpc<span class="w"> </span>stack...
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>Waiting<span class="w"> </span><span class="k">for</span><span class="w"> </span>changeset<span class="w"> </span>to<span class="w"> </span>be<span class="w"> </span>created..
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>Waiting<span class="w"> </span><span class="k">for</span><span class="w"> </span>stack<span class="w"> </span>create/update<span class="w"> </span>to<span class="w"> </span><span class="nb">complete</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>Successfully<span class="w"> </span>created/updated<span class="w"> </span>stack<span class="w"> </span>-<span class="w"> </span>nitro-vault-vpc
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="o">[</span>!<span class="o">]</span><span class="w"> </span>Deploying<span class="w"> </span>nitro-vault-key<span class="w"> </span>stack...
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>Waiting<span class="w"> </span><span class="k">for</span><span class="w"> </span>changeset<span class="w"> </span>to<span class="w"> </span>be<span class="w"> </span>created..
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>Waiting<span class="w"> </span><span class="k">for</span><span class="w"> </span>stack<span class="w"> </span>create/update<span class="w"> </span>to<span class="w"> </span><span class="nb">complete</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>Successfully<span class="w"> </span>created/updated<span class="w"> </span>stack<span class="w"> </span>-<span class="w"> </span>nitro-vault-key
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="o">[</span>!<span class="o">]</span><span class="w"> </span>Deploying<span class="w"> </span>nitro-vault-ci<span class="w"> </span>stack...
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>Waiting<span class="w"> </span><span class="k">for</span><span class="w"> </span>changeset<span class="w"> </span>to<span class="w"> </span>be<span class="w"> </span>created..
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>Waiting<span class="w"> </span><span class="k">for</span><span class="w"> </span>stack<span class="w"> </span>create/update<span class="w"> </span>to<span class="w"> </span><span class="nb">complete</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>Successfully<span class="w"> </span>created/updated<span class="w"> </span>stack<span class="w"> </span>-<span class="w"> </span>nitro-vault-ci
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="o">[</span>!<span class="o">]</span><span class="w"> </span>Updating<span class="w"> </span>nitro-vault-key<span class="w"> </span>stack<span class="w"> </span>with<span class="w"> </span>deployed<span class="w"> </span>Step<span class="w"> </span>Functions<span class="w"> </span>role...
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>Waiting<span class="w"> </span><span class="k">for</span><span class="w"> </span>changeset<span class="w"> </span>to<span class="w"> </span>be<span class="w"> </span>created..
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>Waiting<span class="w"> </span><span class="k">for</span><span class="w"> </span>stack<span class="w"> </span>create/update<span class="w"> </span>to<span class="w"> </span><span class="nb">complete</span>
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>Successfully<span class="w"> </span>created/updated<span class="w"> </span>stack<span class="w"> </span>-<span class="w"> </span>nitro-vault-key
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="o">[</span>?<span class="o">]</span><span class="w"> </span>Do<span class="w"> </span>you<span class="w"> </span>want<span class="w"> </span>to<span class="w"> </span>create<span class="w"> </span>a<span class="w"> </span>new<span class="w"> </span>private<span class="w"> </span>signing<span class="w"> </span>key<span class="w"> </span><span class="k">for</span><span class="w"> </span>AWS<span class="w"> </span>Nitro<span class="w"> </span>Enclaves?<span class="w"> </span><span class="o">(</span>y/n<span class="o">)</span><span class="w"> </span>y
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a><span class="o">[</span>+<span class="o">]</span><span class="w"> </span>Updating<span class="w"> </span>secret<span class="w"> </span><span class="k">in</span><span class="w"> </span>AWS<span class="w"> </span>SecretsManager<span class="w"> </span>with<span class="w"> </span>private<span class="w"> </span>signing<span class="w"> </span>key...
+<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a><span class="o">{</span>
+<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a><span class="w">    </span><span class="s2">&quot;ARN&quot;</span>:<span class="w"> </span><span class="s2">&quot;arn:aws:secretsmanager:us-east-1:123456789012:secret:rSigningSecret-XXXXXXXXX&quot;</span>,
+<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a><span class="w">    </span><span class="s2">&quot;Name&quot;</span>:<span class="w"> </span><span class="s2">&quot;rSigningSecret-XXXXXXXXX&quot;</span>,
+<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a><span class="w">    </span><span class="s2">&quot;VersionId&quot;</span>:<span class="w"> </span><span class="s2">&quot;ba6a5637-d579-4811-a1de-XXXXXXXXX&quot;</span>
+<a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a><span class="o">}</span>
+<a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a>
+<a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a><span class="o">[</span>+<span class="o">]</span><span class="w"> </span>Opening<span class="w"> </span>AWS<span class="w"> </span>Console<span class="w"> </span>to<span class="w"> </span><span class="nb">complete</span><span class="w"> </span><span class="nb">set</span><span class="w"> </span>up<span class="w"> </span>AWS<span class="w"> </span>CodeConnections<span class="w"> </span>to<span class="w"> </span>GitHub...
+<a id="__codelineno-2-32" name="__codelineno-2-32" href="#__codelineno-2-32"></a><span class="o">[</span>?<span class="o">]</span><span class="w"> </span>Select<span class="w"> </span>the<span class="w"> </span>radio<span class="w"> </span>button<span class="w"> </span>next<span class="w"> </span>to<span class="w"> </span>nitro-vault-ci<span class="w"> </span>and<span class="w"> </span><span class="k">then</span><span class="w"> </span>click<span class="w"> </span>on<span class="w"> </span><span class="s2">&quot;Update pending connection&quot;</span>
+<a id="__codelineno-2-33" name="__codelineno-2-33" href="#__codelineno-2-33"></a><span class="o">[</span>!<span class="o">]</span><span class="w"> </span>Waiting<span class="w"> </span><span class="k">for</span><span class="w"> </span>pipeline<span class="w"> </span>to<span class="w"> </span>complete...
+<a id="__codelineno-2-34" name="__codelineno-2-34" href="#__codelineno-2-34"></a>
+<a id="__codelineno-2-35" name="__codelineno-2-35" href="#__codelineno-2-35"></a><span class="o">[</span>!<span class="o">]</span><span class="w"> </span>Pipeline<span class="w"> </span><span class="k">in</span><span class="w"> </span>progress,<span class="w"> </span>sleeping<span class="w"> </span><span class="m">5</span><span class="w"> </span>seconds...
+<a id="__codelineno-2-36" name="__codelineno-2-36" href="#__codelineno-2-36"></a><span class="o">[</span>!<span class="o">]</span><span class="w"> </span>Pipeline<span class="w"> </span><span class="k">in</span><span class="w"> </span>progress,<span class="w"> </span>sleeping<span class="w"> </span><span class="m">5</span><span class="w"> </span>seconds...
+<a id="__codelineno-2-37" name="__codelineno-2-37" href="#__codelineno-2-37"></a><span class="o">[</span>!<span class="o">]</span><span class="w"> </span>Pipeline<span class="w"> </span><span class="k">in</span><span class="w"> </span>progress,<span class="w"> </span>sleeping<span class="w"> </span><span class="m">5</span><span class="w"> </span>seconds...
+<a id="__codelineno-2-38" name="__codelineno-2-38" href="#__codelineno-2-38"></a>...
+</code></pre></div>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>You must update the pending connection prior to triggering the AWS CodePipeline or else it won't be able to check out the source code from GitHub.</p>
+</div>
+<p><img alt="AWS CodeConnections" src="../images/aws_codeconnections_pending.png" /></p>
+<p>Select the <code>nitro-vault-ci-&lt;region&gt;</code> AWS CodeConnections connection and click <code>Update pending connection</code> to link it to your GitHub account. After you have succesfully linked your GitHub account, press any key to start the CodePipeline.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>...
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="o">[</span>!<span class="o">]</span><span class="w"> </span>Pipeline<span class="w"> </span><span class="k">in</span><span class="w"> </span>progress,<span class="w"> </span>sleeping<span class="w"> </span><span class="m">5</span><span class="w"> </span>seconds...
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="o">[</span>!<span class="o">]</span><span class="w"> </span>Pipeline<span class="w"> </span><span class="k">in</span><span class="w"> </span>progress,<span class="w"> </span>sleeping<span class="w"> </span><span class="m">5</span><span class="w"> </span>seconds...
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="o">[</span>!<span class="o">]</span><span class="w"> </span>Pipeline<span class="w"> </span><span class="k">in</span><span class="w"> </span>progress,<span class="w"> </span>sleeping<span class="w"> </span><span class="m">5</span><span class="w"> </span>seconds...
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="o">[</span>+<span class="o">]</span><span class="w"> </span>Pipeline<span class="w"> </span>finished<span class="w"> </span>successfully.
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="o">[</span>+<span class="o">]</span><span class="w"> </span>Opening<span class="w"> </span>Swagger<span class="w"> </span>UI<span class="w"> </span>at<span class="w"> </span>https://xxxxxxx.execute-api.region.amazonaws.com/v1/swagger...
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="o">[</span>+<span class="o">]</span><span class="w"> </span>Done!%
+</code></pre></div>
+</li>
+</ol>
+<hr />
+<p>The installation script does the following:</p>
+<ol>
+<li>Deploys a CloudFormation <a href="https://github.com/aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves/blob/main/vpc_template.yml">VPC template</a> to create a VPC with two private subnets across two availability zones (default stack name is <code>nitro-vault-vpc</code>)</li>
+<li>Deploys a CloudFormation <a href="https://github.com/aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves/blob/main/kms_template.yml">KMS template</a> to create a KMS key (default stack name is <code>nitro-vault-key</code>)</li>
+<li>Deploys a CloudFormation <a href="https://github.com/aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves/blob/main/ci_template.yml">CI template</a> to create a CodePipeline and four CodeBuild projects to build the various application components and deploy the EC2 instances and API (default stack name is <code>nitro-vault-ci</code>)</li>
+</ol>
+<h2 id="post-deployment-guidance">Post Deployment Guidance<a class="headerlink" href="#post-deployment-guidance" title="Permanent link">&para;</a></h2>
+<p>Once you have completed the deployment, follow the <a href="../post-deployment/">Post Deployment Guide</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["tabs", "content.code.copy", "announce.dismiss", "header.autohide"], "search": "../assets/javascripts/workers/search.f8cc74c7.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.c8b220af.min.js"></script>
+      
+    
+  </body>
+</html>

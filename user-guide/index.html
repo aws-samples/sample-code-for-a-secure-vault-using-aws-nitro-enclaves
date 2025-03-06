@@ -1,0 +1,1895 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../post-deployment/">
+      
+      
+        <link rel="next" href="../security/">
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.7">
+    
+    
+      
+        <title>User Guide - AWS Nitro Enclaves Vault</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.8608ea7d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#user-guide" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="AWS Nitro Enclaves Vault" class="md-header__button md-logo" aria-label="AWS Nitro Enclaves Vault" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AWS Nitro Enclaves Vault
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              User Guide
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="AWS Nitro Enclaves Vault" class="md-nav__button md-logo" aria-label="AWS Nitro Enclaves Vault" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    AWS Nitro Enclaves Vault
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aws-samples/sample-code-for-a-secure-vault-using-aws-nitro-enclaves
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Architecture
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Deployment Guide
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Deployment Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Deployment
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../post-deployment/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Post Deployment Guide
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    User Guide
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    User Guide
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deployment
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interacting-with-vaults" class="md-nav__link">
+    <span class="md-ellipsis">
+      Interacting with Vaults
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Interacting with Vaults">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#create-vault-post-v1vaults" class="md-nav__link">
+    <span class="md-ellipsis">
+      Create vault (POST /v1/vaults)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Create vault (POST /v1/vaults)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sample-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Request
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-response" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Response
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-user-vault-get-v1vaultsvault_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      Get user vault (GET /v1/vaults/&lt;vault_id&gt;)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Get user vault (GET /v1/vaults/&lt;vault_id&gt;)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sample-request_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Request
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-response_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Response
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update-vault-patch-v1vaultsvault_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      Update vault (PATCH /v1/vaults/&lt;vault_id&gt;)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Update vault (PATCH /v1/vaults/&lt;vault_id&gt;)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sample-request_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Request
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-response_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Response
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete-vault-delete-v1vaultsvault_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      Delete vault (DELETE /v1/vaults/&lt;vault_id&gt;)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Delete vault (DELETE /v1/vaults/&lt;vault_id&gt;)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sample-request-specific-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Request (specific attributes)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-response-specific-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Response (specific attributes)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-request-all-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Request (all attributes)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-response-all-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Response (all attributes)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decrypt-user-vault-post-v1vaultsvault_iddecrypt" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decrypt user vault (POST /v1/vaults/&lt;vault_id&gt;/decrypt)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Decrypt user vault (POST /v1/vaults/&lt;vault_id&gt;/decrypt)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sample-request_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Request
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-response_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Response
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cel-expressions" class="md-nav__link">
+    <span class="md-ellipsis">
+      CEL Expressions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CEL Expressions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#contains" class="md-nav__link">
+    <span class="md-ellipsis">
+      contains
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#size" class="md-nav__link">
+    <span class="md-ellipsis">
+      size
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#has" class="md-nav__link">
+    <span class="md-ellipsis">
+      has
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#map" class="md-nav__link">
+    <span class="md-ellipsis">
+      map
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      filter
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#all" class="md-nav__link">
+    <span class="md-ellipsis">
+      all
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#max" class="md-nav__link">
+    <span class="md-ellipsis">
+      max
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#startswith" class="md-nav__link">
+    <span class="md-ellipsis">
+      startsWith
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#duration" class="md-nav__link">
+    <span class="md-ellipsis">
+      duration
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timestamp" class="md-nav__link">
+    <span class="md-ellipsis">
+      timestamp
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#string" class="md-nav__link">
+    <span class="md-ellipsis">
+      string
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#double" class="md-nav__link">
+    <span class="md-ellipsis">
+      double
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exists" class="md-nav__link">
+    <span class="md-ellipsis">
+      exists
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exists_one" class="md-nav__link">
+    <span class="md-ellipsis">
+      exists_one
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#int" class="md-nav__link">
+    <span class="md-ellipsis">
+      int
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#uint" class="md-nav__link">
+    <span class="md-ellipsis">
+      uint
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#is_empty" class="md-nav__link">
+    <span class="md-ellipsis">
+      is_empty
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#to_lowercase" class="md-nav__link">
+    <span class="md-ellipsis">
+      to_lowercase
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#to_uppercase" class="md-nav__link">
+    <span class="md-ellipsis">
+      to_uppercase
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hmac_sha256" class="md-nav__link">
+    <span class="md-ellipsis">
+      hmac_sha256
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hmac_sha384" class="md-nav__link">
+    <span class="md-ellipsis">
+      hmac_sha384
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hmac_sha512" class="md-nav__link">
+    <span class="md-ellipsis">
+      hmac_sha512
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hex_encode" class="md-nav__link">
+    <span class="md-ellipsis">
+      hex_encode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hex_decode" class="md-nav__link">
+    <span class="md-ellipsis">
+      hex_decode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#base64_encode" class="md-nav__link">
+    <span class="md-ellipsis">
+      base64_encode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#base64_decode" class="md-nav__link">
+    <span class="md-ellipsis">
+      base64_decode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#date" class="md-nav__link">
+    <span class="md-ellipsis">
+      date
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#today_utc" class="md-nav__link">
+    <span class="md-ellipsis">
+      today_utc
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#age" class="md-nav__link">
+    <span class="md-ellipsis">
+      age
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Security
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    FAQ
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../support/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Support
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../references/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    References
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deployment
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interacting-with-vaults" class="md-nav__link">
+    <span class="md-ellipsis">
+      Interacting with Vaults
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Interacting with Vaults">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#create-vault-post-v1vaults" class="md-nav__link">
+    <span class="md-ellipsis">
+      Create vault (POST /v1/vaults)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Create vault (POST /v1/vaults)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sample-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Request
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-response" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Response
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-user-vault-get-v1vaultsvault_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      Get user vault (GET /v1/vaults/&lt;vault_id&gt;)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Get user vault (GET /v1/vaults/&lt;vault_id&gt;)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sample-request_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Request
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-response_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Response
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update-vault-patch-v1vaultsvault_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      Update vault (PATCH /v1/vaults/&lt;vault_id&gt;)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Update vault (PATCH /v1/vaults/&lt;vault_id&gt;)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sample-request_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Request
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-response_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Response
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete-vault-delete-v1vaultsvault_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      Delete vault (DELETE /v1/vaults/&lt;vault_id&gt;)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Delete vault (DELETE /v1/vaults/&lt;vault_id&gt;)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sample-request-specific-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Request (specific attributes)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-response-specific-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Response (specific attributes)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-request-all-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Request (all attributes)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-response-all-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Response (all attributes)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decrypt-user-vault-post-v1vaultsvault_iddecrypt" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decrypt user vault (POST /v1/vaults/&lt;vault_id&gt;/decrypt)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Decrypt user vault (POST /v1/vaults/&lt;vault_id&gt;/decrypt)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sample-request_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Request
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-response_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample Response
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cel-expressions" class="md-nav__link">
+    <span class="md-ellipsis">
+      CEL Expressions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CEL Expressions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#contains" class="md-nav__link">
+    <span class="md-ellipsis">
+      contains
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#size" class="md-nav__link">
+    <span class="md-ellipsis">
+      size
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#has" class="md-nav__link">
+    <span class="md-ellipsis">
+      has
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#map" class="md-nav__link">
+    <span class="md-ellipsis">
+      map
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      filter
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#all" class="md-nav__link">
+    <span class="md-ellipsis">
+      all
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#max" class="md-nav__link">
+    <span class="md-ellipsis">
+      max
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#startswith" class="md-nav__link">
+    <span class="md-ellipsis">
+      startsWith
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#duration" class="md-nav__link">
+    <span class="md-ellipsis">
+      duration
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timestamp" class="md-nav__link">
+    <span class="md-ellipsis">
+      timestamp
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#string" class="md-nav__link">
+    <span class="md-ellipsis">
+      string
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#double" class="md-nav__link">
+    <span class="md-ellipsis">
+      double
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exists" class="md-nav__link">
+    <span class="md-ellipsis">
+      exists
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exists_one" class="md-nav__link">
+    <span class="md-ellipsis">
+      exists_one
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#int" class="md-nav__link">
+    <span class="md-ellipsis">
+      int
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#uint" class="md-nav__link">
+    <span class="md-ellipsis">
+      uint
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#is_empty" class="md-nav__link">
+    <span class="md-ellipsis">
+      is_empty
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#to_lowercase" class="md-nav__link">
+    <span class="md-ellipsis">
+      to_lowercase
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#to_uppercase" class="md-nav__link">
+    <span class="md-ellipsis">
+      to_uppercase
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hmac_sha256" class="md-nav__link">
+    <span class="md-ellipsis">
+      hmac_sha256
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hmac_sha384" class="md-nav__link">
+    <span class="md-ellipsis">
+      hmac_sha384
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hmac_sha512" class="md-nav__link">
+    <span class="md-ellipsis">
+      hmac_sha512
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hex_encode" class="md-nav__link">
+    <span class="md-ellipsis">
+      hex_encode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hex_decode" class="md-nav__link">
+    <span class="md-ellipsis">
+      hex_decode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#base64_encode" class="md-nav__link">
+    <span class="md-ellipsis">
+      base64_encode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#base64_decode" class="md-nav__link">
+    <span class="md-ellipsis">
+      base64_decode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#date" class="md-nav__link">
+    <span class="md-ellipsis">
+      date
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#today_utc" class="md-nav__link">
+    <span class="md-ellipsis">
+      today_utc
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#age" class="md-nav__link">
+    <span class="md-ellipsis">
+      age
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="user-guide">User Guide<a class="headerlink" href="#user-guide" title="Permanent link">&para;</a></h1>
+<h2 id="deployment">Deployment<a class="headerlink" href="#deployment" title="Permanent link">&para;</a></h2>
+<p>For instructions on deploying the solution, visit the <a href="../deployment/">Deployment Guide</a>. Once deployment is complete, check the <a href="../post-deployment/">Post Deployment Guide</a> to create a vault.</p>
+<hr />
+<h2 id="interacting-with-vaults">Interacting with Vaults<a class="headerlink" href="#interacting-with-vaults" title="Permanent link">&para;</a></h2>
+<p><a href="https://github.com/swagger-api/swagger-ui">Swagger UI</a> is available after deployment at <code>https://&lt;API Gateway Endpoint&gt;/v1/swagger</code>.</p>
+<p>The Nitro Enclaves Vault solution exposes a RESTful API for interacting with vaults aligned to HTTP methods.</p>
+<hr />
+<h3 id="create-vault-post-v1vaults">Create vault (<code>POST /v1/vaults</code>)<a class="headerlink" href="#create-vault-post-v1vaults" title="Permanent link">&para;</a></h3>
+<p>This endpoint creates a new user vault by calling <code>kms:GenerateDataKeyPairWithoutPlaintext</code> and using the returned public key to encrypt the optional payload data.</p>
+<h5 id="sample-request">Sample Request<a class="headerlink" href="#sample-request" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>POST<span class="w"> </span>/v1/vaults<span class="w"> </span>HTTP/1.1
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Content-Type:<span class="w"> </span>application/json
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Content-Length:<span class="w"> </span><span class="m">81</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="o">{</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="s2">&quot;first_name&quot;</span>:<span class="w"> </span><span class="s2">&quot;Test&quot;</span>,
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="s2">&quot;last_name&quot;</span>:<span class="w"> </span><span class="s2">&quot;User&quot;</span>,
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span><span class="s2">&quot;ssn9&quot;</span>:<span class="w"> </span><span class="s2">&quot;123456789&quot;</span>,
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="s2">&quot;dob&quot;</span>:<span class="w"> </span><span class="s2">&quot;2020-01-01&quot;</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="o">}</span>
+</code></pre></div>
+<h5 id="sample-response">Sample Response<a class="headerlink" href="#sample-response" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>HTTP/1.1<span class="w"> </span><span class="m">200</span><span class="w"> </span>OK
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>Date:<span class="w"> </span>Tue,<span class="w"> </span><span class="m">09</span><span class="w"> </span>Apr<span class="w"> </span><span class="m">2024</span><span class="w"> </span><span class="m">17</span>:18:17<span class="w"> </span>GMT
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>Content-Type:<span class="w"> </span>application/json
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>Content-Length:<span class="w"> </span><span class="m">37</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>Cache-Control:<span class="w"> </span>no-cache,<span class="w"> </span>no-store,<span class="w"> </span>must-revalidate
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>X-Content-Type-Options:<span class="w"> </span>nosniff
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>Expires:<span class="w"> </span><span class="m">0</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>Pragma:<span class="w"> </span>no-cache
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="o">{</span><span class="s2">&quot;id&quot;</span>:<span class="s2">&quot;v_01HV1XW70Q03PHK892JFQAY0Z5&quot;</span><span class="o">}</span>
+</code></pre></div>
+<hr />
+<h3 id="get-user-vault-get-v1vaultsvault_id">Get user vault (<code>GET /v1/vaults/&lt;vault_id&gt;</code>)<a class="headerlink" href="#get-user-vault-get-v1vaultsvault_id" title="Permanent link">&para;</a></h3>
+<p>This endpoint returns whether attributes are included within the vault or not.</p>
+<h5 id="sample-request_1">Sample Request<a class="headerlink" href="#sample-request_1" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>GET<span class="w"> </span>/v1/vaults/&lt;vault_id&gt;?fields<span class="o">=</span>first_name,last_name,email,middle_name,ssn9,ssn4,dob<span class="w"> </span>HTTP/1.1
+</code></pre></div>
+<h5 id="sample-response_1">Sample Response<a class="headerlink" href="#sample-response_1" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>HTTP/1.1<span class="w"> </span><span class="m">200</span><span class="w"> </span>OK
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Date:<span class="w"> </span>Tue,<span class="w"> </span><span class="m">09</span><span class="w"> </span>Apr<span class="w"> </span><span class="m">2024</span><span class="w"> </span><span class="m">18</span>:06:11<span class="w"> </span>GMT
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>Content-Type:<span class="w"> </span>application/json
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>Content-Length:<span class="w"> </span><span class="m">105</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>Cache-Control:<span class="w"> </span>no-cache,<span class="w"> </span>no-store,<span class="w"> </span>must-revalidate
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>X-Content-Type-Options:<span class="w"> </span>nosniff
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>Expires:<span class="w"> </span><span class="m">0</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>Pragma:<span class="w"> </span>no-cache
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="o">{</span><span class="s2">&quot;first_name&quot;</span>:true,<span class="s2">&quot;last_name&quot;</span>:true,<span class="s2">&quot;email&quot;</span>:false,<span class="s2">&quot;middle_name&quot;</span>:false,<span class="s2">&quot;ssn9&quot;</span>:true,<span class="s2">&quot;ssn4&quot;</span>:true,<span class="s2">&quot;dob&quot;</span>:true<span class="o">}</span>
+</code></pre></div>
+<hr />
+<h3 id="update-vault-patch-v1vaultsvault_id">Update vault (<code>PATCH /v1/vaults/&lt;vault_id</code>&gt;)<a class="headerlink" href="#update-vault-patch-v1vaultsvault_id" title="Permanent link">&para;</a></h3>
+<p>This endpoint will overwrite existing attributes contained within the vault. This endpoint returns an empty response.</p>
+<h5 id="sample-request_2">Sample Request<a class="headerlink" href="#sample-request_2" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>PATCH<span class="w"> </span>/v1/vaults/&lt;vault_id&gt;<span class="w"> </span>HTTP/1.1
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>Content-Type:<span class="w"> </span>application/json
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>Content-Length:<span class="w"> </span><span class="m">82</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="o">{</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="s2">&quot;first_name&quot;</span>:<span class="w"> </span><span class="s2">&quot;Test&quot;</span>,
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="s2">&quot;last_name&quot;</span>:<span class="w"> </span><span class="s2">&quot;User&quot;</span>,
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="s2">&quot;ssn9&quot;</span>:<span class="w"> </span><span class="s2">&quot;123456789&quot;</span>,
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span><span class="s2">&quot;dob&quot;</span>:<span class="w"> </span><span class="s2">&quot;2022-01-01&quot;</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="o">}</span>
+</code></pre></div>
+<h5 id="sample-response_2">Sample Response<a class="headerlink" href="#sample-response_2" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>HTTP/1.1<span class="w"> </span><span class="m">200</span><span class="w"> </span>OK
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>Date:<span class="w"> </span>Tue,<span class="w"> </span><span class="m">09</span><span class="w"> </span>Apr<span class="w"> </span><span class="m">2024</span><span class="w"> </span><span class="m">18</span>:36:30<span class="w"> </span>GMT
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>Content-Type:<span class="w"> </span>application/json
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>Content-Length:<span class="w"> </span><span class="m">2</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>Cache-Control:<span class="w"> </span>no-cache,<span class="w"> </span>no-store,<span class="w"> </span>must-revalidate
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>X-Content-Type-Options:<span class="w"> </span>nosniff
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>Expires:<span class="w"> </span><span class="m">0</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>Pragma:<span class="w"> </span>no-cache
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="o">{}</span>
+</code></pre></div>
+<hr />
+<h3 id="delete-vault-delete-v1vaultsvault_id">Delete vault (<code>DELETE /v1/vaults/&lt;vault_id&gt;</code>)<a class="headerlink" href="#delete-vault-delete-v1vaultsvault_id" title="Permanent link">&para;</a></h3>
+<p>This endpoint will delete specific attributes or the entire user vault. This endpoint returns an empty response.</p>
+<h5 id="sample-request-specific-attributes">Sample Request (specific attributes)<a class="headerlink" href="#sample-request-specific-attributes" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>DELETE<span class="w"> </span>/v1/vaults/&lt;vault_id&gt;<span class="w"> </span>HTTP/1.1
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>Content-Type:<span class="w"> </span>application/json
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>Content-Length:<span class="w"> </span><span class="m">20</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="o">{</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">  </span><span class="s2">&quot;fields&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="s2">&quot;ssn9&quot;</span><span class="o">]</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="o">}</span>
+</code></pre></div>
+<h5 id="sample-response-specific-attributes">Sample Response (specific attributes)<a class="headerlink" href="#sample-response-specific-attributes" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>HTTP/1.1<span class="w"> </span><span class="m">200</span><span class="w"> </span>OK
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>Date:<span class="w"> </span>Tue,<span class="w"> </span><span class="m">09</span><span class="w"> </span>Apr<span class="w"> </span><span class="m">2024</span><span class="w"> </span><span class="m">18</span>:36:30<span class="w"> </span>GMT
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>Content-Type:<span class="w"> </span>application/json
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>Content-Length:<span class="w"> </span><span class="m">2</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>Cache-Control:<span class="w"> </span>no-cache,<span class="w"> </span>no-store,<span class="w"> </span>must-revalidate
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>X-Content-Type-Options:<span class="w"> </span>nosniff
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>Expires:<span class="w"> </span><span class="m">0</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>Pragma:<span class="w"> </span>no-cache
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="o">{}</span>
+</code></pre></div>
+<h5 id="sample-request-all-attributes">Sample Request (all attributes)<a class="headerlink" href="#sample-request-all-attributes" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>DELETE<span class="w"> </span>/v1/vaults/&lt;vault_id&gt;<span class="w"> </span>HTTP/1.1
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>Content-Type:<span class="w"> </span>application/json
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>Content-Length:<span class="w"> </span><span class="m">20</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="o">{</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="s2">&quot;delete_all&quot;</span>:<span class="w"> </span><span class="nb">true</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="o">}</span>
+</code></pre></div>
+<h5 id="sample-response-all-attributes">Sample Response  (all attributes)<a class="headerlink" href="#sample-response-all-attributes" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>HTTP/1.1<span class="w"> </span><span class="m">200</span><span class="w"> </span>OK
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>Date:<span class="w"> </span>Tue,<span class="w"> </span><span class="m">09</span><span class="w"> </span>Apr<span class="w"> </span><span class="m">2024</span><span class="w"> </span><span class="m">18</span>:36:30<span class="w"> </span>GMT
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>Content-Type:<span class="w"> </span>application/json
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>Content-Length:<span class="w"> </span><span class="m">2</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>Cache-Control:<span class="w"> </span>no-cache,<span class="w"> </span>no-store,<span class="w"> </span>must-revalidate
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>X-Content-Type-Options:<span class="w"> </span>nosniff
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>Expires:<span class="w"> </span><span class="m">0</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>Pragma:<span class="w"> </span>no-cache
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="o">{}</span>
+</code></pre></div>
+<hr />
+<h3 id="decrypt-user-vault-post-v1vaultsvault_iddecrypt">Decrypt user vault (<code>POST /v1/vaults/&lt;vault_id&gt;/decrypt</code>)<a class="headerlink" href="#decrypt-user-vault-post-v1vaultsvault_iddecrypt" title="Permanent link">&para;</a></h3>
+<p>This endpoint communicates with the internal Network Load Balancer endpoint to decrypt attributes securely from within the Nitro Enclaves. The API supports three attributes in the request:</p>
+<ul>
+<li><code>fields</code>: an array of string attributes to decrypt</li>
+<li><code>reason</code>: a string reason for the decrypt request that gets logged</li>
+<li><code>expressions</code>: a object of <a href="https://cel.dev/">Common Expression Language</a> (CEL) expressions to execute against the decrypted attributes (more details below)</li>
+</ul>
+<h5 id="sample-request_3">Sample Request<a class="headerlink" href="#sample-request_3" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>POST<span class="w"> </span>/v1/vaults/&lt;vault_id&gt;/decrypt
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>Content-Type:<span class="w"> </span>application/json
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>Content-Length:<span class="w"> </span><span class="m">116</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="o">{</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">  </span><span class="s2">&quot;fields&quot;</span>:<span class="w"> </span><span class="o">[</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">    </span><span class="s2">&quot;first_name&quot;</span>,
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">    </span><span class="s2">&quot;last_name&quot;</span>,
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">    </span><span class="s2">&quot;dob&quot;</span>,
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">    </span><span class="s2">&quot;ssn4&quot;</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">  </span><span class="o">]</span>,
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="w">  </span><span class="s2">&quot;reason&quot;</span>:<span class="w"> </span><span class="s2">&quot;user validation&quot;</span>,
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="w">  </span><span class="s2">&quot;expressions&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="w">    </span><span class="s2">&quot;age&quot;</span>:<span class="w"> </span><span class="s2">&quot;date(dob).age()&quot;</span>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="w">  </span><span class="o">}</span>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="o">}</span>
+</code></pre></div>
+<h5 id="sample-response_3">Sample Response<a class="headerlink" href="#sample-response_3" title="Permanent link">&para;</a></h5>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>HTTP/1.1<span class="w"> </span><span class="m">200</span><span class="w"> </span>OK
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>Date:<span class="w"> </span>Tue,<span class="w"> </span><span class="m">09</span><span class="w"> </span>Apr<span class="w"> </span><span class="m">2024</span><span class="w"> </span><span class="m">20</span>:46:52<span class="w"> </span>GMT
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>Content-Type:<span class="w"> </span>application/json
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>Content-Length:<span class="w"> </span><span class="m">82</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>Cache-Control:<span class="w"> </span>no-cache,<span class="w"> </span>no-store,<span class="w"> </span>must-revalidate
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>X-Content-Type-Options:<span class="w"> </span>nosniff
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>Expires:<span class="w"> </span><span class="m">0</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>Pragma:<span class="w"> </span>no-cache
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="o">{</span><span class="s2">&quot;age&quot;</span>:37,<span class="s2">&quot;dob&quot;</span>:<span class="s2">&quot;1986-01-01&quot;</span>,<span class="s2">&quot;first_name&quot;</span>:<span class="s2">&quot;Test&quot;</span>,<span class="s2">&quot;last_name&quot;</span>:<span class="s2">&quot;User&quot;</span>,<span class="s2">&quot;ssn4&quot;</span>:<span class="s2">&quot;6789&quot;</span><span class="o">}</span>
+</code></pre></div>
+<hr />
+<h2 id="cel-expressions">CEL Expressions<a class="headerlink" href="#cel-expressions" title="Permanent link">&para;</a></h2>
+<p>The Decrypt API supports the following expressions functions through the <a href="https://cel.dev/">Common Expression Language</a> (CEL).</p>
+<blockquote>
+<p>Common Expression Language (CEL) is a general-purpose expression language designed to be fast, portable, and safe to execute. You can use CEL on its own or embed it into a larger product. CEL is a great fit for a wide variety applications, from routing remote procedure calls (RPCs) to defining security policies. CEL is extensible, platform independent, and optimized for compile-once/evaluate-many workflows.</p>
+</blockquote>
+<h4 id="contains">contains<a class="headerlink" href="#contains" title="Permanent link">&para;</a></h4>
+<p>Returns true if the target contains the provided argument. The actual behavior depends mainly on the type of the target.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[1, 2, 3].contains(1) == true
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>{&quot;a&quot;: 1, &quot;b&quot;: 2, &quot;c&quot;: 3}.contains(&quot;a&quot;) == true
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>&quot;abc&quot;.contains(&quot;b&quot;) == true
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>b&quot;abc&quot;.contains(b&quot;c&quot;) == true
+</code></pre></div>
+<h4 id="size">size<a class="headerlink" href="#size" title="Permanent link">&para;</a></h4>
+<p>Calculates the size of either the target, or the provided arguments depending on how the function is called. If called as a method, the target will be used. If called as a function, the first argument will be used.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>size([1, 2, 3]) == 3
+</code></pre></div>
+<h4 id="has">has<a class="headerlink" href="#has" title="Permanent link">&para;</a></h4>
+<p>Returns true if the provided argument can be resolved. This function is useful for checking if a property exists on a type before attempting to resolve it. Resolving a property that does not exist will result in a [<code>ExecutionError::NoSuchKey</code>] error.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>has(foo.bar.baz)
+</code></pre></div>
+<h4 id="map">map<a class="headerlink" href="#map" title="Permanent link">&para;</a></h4>
+<p>Maps the provided list to a new list by applying an expression to each input item.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[1, 2, 3].map(x, x * 2) == [2, 4, 6]
+</code></pre></div>
+<h4 id="filter">filter<a class="headerlink" href="#filter" title="Permanent link">&para;</a></h4>
+<p>Filters the provided list by applying an expression to each input item and including the input item in the resulting list, only if the expression returned true.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[1, 2, 3].filter(x, x &gt; 1) == [2, 3]
+</code></pre></div>
+<h4 id="all">all<a class="headerlink" href="#all" title="Permanent link">&para;</a></h4>
+<p>Returns a boolean value indicating whether every value in the provided list or map met the predicate defined by the provided expression. If called on a map, the predicate is applied to the map keys.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[1, 2, 3].all(x, x &gt; 0) == true
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>[{1:true, 2:true, 3:false}].all(x, x &gt; 0) == true
+</code></pre></div>
+<h4 id="max">max<a class="headerlink" href="#max" title="Permanent link">&para;</a></h4>
+<p>Returns the maximum value from a list or arguments.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>max([1, 2, 3]) == 3
+</code></pre></div>
+<h4 id="startswith">startsWith<a class="headerlink" href="#startswith" title="Permanent link">&para;</a></h4>
+<p>Returns true if a string starts with another string.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>&quot;abc&quot;.startsWith(&quot;a&quot;) == true
+</code></pre></div>
+<h4 id="duration">duration<a class="headerlink" href="#duration" title="Permanent link">&para;</a></h4>
+<p>Duration parses the provided argument into a [<code>Value::Duration</code>] value. The argument must be string, and must be in the format of a duration.</p>
+<ul>
+<li><code>1h</code> parses as 1 hour</li>
+<li><code>1.5h</code> parses as 1 hour and 30 minutes</li>
+<li><code>1h30m</code> parses as 1 hour and 30 minutes</li>
+<li><code>1h30m1s</code> parses as 1 hour, 30 minutes, and 1 second</li>
+<li><code>1ms</code> parses as 1 millisecond</li>
+<li><code>1.5ms</code> parses as 1 millisecond and 500 microseconds</li>
+<li><code>1ns</code> parses as 1 nanosecond</li>
+<li><code>1.5ns</code> parses as 1 nanosecond (sub-nanosecond durations not supported)</li>
+</ul>
+<h4 id="timestamp">timestamp<a class="headerlink" href="#timestamp" title="Permanent link">&para;</a></h4>
+<p>Timestamp parses the provided argument into a [<code>Value::Timestamp</code>] value.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>timestamp(&quot;2024-04-09T18:58:44Z&quot;)
+</code></pre></div>
+<h4 id="string">string<a class="headerlink" href="#string" title="Permanent link">&para;</a></h4>
+<p>Performs a type conversion on the target. The following conversions are currently supported:</p>
+<ul>
+<li><code>string</code> - Returns a copy of the target string.</li>
+<li><code>timestamp</code> - Returns the timestamp in RFC3339 format.</li>
+<li><code>duration</code> - Returns the duration in a string formatted like "72h3m0.5s".</li>
+<li><code>int</code> - Returns the integer value of the target.</li>
+<li><code>uint</code> - Returns the unsigned integer value of the target.</li>
+<li><code>float</code> - Returns the float value of the target.</li>
+<li><code>bytes</code> - Converts bytes to string using from_utf8_lossy.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>string(&quot;1.2&quot;) == 1.2
+</code></pre></div>
+<h4 id="double">double<a class="headerlink" href="#double" title="Permanent link">&para;</a></h4>
+<p>Performs a type conversion on the target.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>double(&quot;1.2&quot;) == 1.2
+</code></pre></div>
+<h4 id="exists">exists<a class="headerlink" href="#exists" title="Permanent link">&para;</a></h4>
+<p>Returns a boolean value indicating whether a or more values in the provided list or map meet the predicate defined by the provided expression. If called on a map, the predicate is applied to the map keys.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>[1, 2, 3].exists(x, x &gt; 0) == true
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>[{1:true, 2:true, 3:false}].exists(x, x &gt; 0) == true
+</code></pre></div>
+<h4 id="exists_one">exists_one<a class="headerlink" href="#exists_one" title="Permanent link">&para;</a></h4>
+<p>Returns a boolean value indicating whether only one value in the provided list or map meets the predicate defined by the provided expression. If called on a map, the predicate is applied to the map keys.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[1, 2, 3].exists_one(x, x &gt; 0) == false
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>[1, 2, 3].exists_one(x, x == 1) == true
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>[{1:true, 2:true, 3:false}].exists_one(x, x &gt; 0) == false
+</code></pre></div>
+<h4 id="int">int<a class="headerlink" href="#int" title="Permanent link">&para;</a></h4>
+<p>Performs a type conversion on the target.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>int(&quot;1&quot;) == 1
+</code></pre></div>
+<h4 id="uint">uint<a class="headerlink" href="#uint" title="Permanent link">&para;</a></h4>
+<p>Performs a type conversion on the target.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>uint(&quot;1&quot;) == 1
+</code></pre></div>
+<h4 id="is_empty">is_empty<a class="headerlink" href="#is_empty" title="Permanent link">&para;</a></h4>
+<p>Returns true if the string is empty.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>&quot;test&quot;.is_empty() == false
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>&quot;&quot;.is_empty() == true
+</code></pre></div>
+<h4 id="to_lowercase">to_lowercase<a class="headerlink" href="#to_lowercase" title="Permanent link">&para;</a></h4>
+<p>Returns a lowercase string.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>&quot;TEST&quot;.to_lowercase() == &quot;test&quot;
+</code></pre></div>
+<h4 id="to_uppercase">to_uppercase<a class="headerlink" href="#to_uppercase" title="Permanent link">&para;</a></h4>
+<p>Returns an uppercase string.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>&quot;test&quot;.to_uppercase() == &quot;TEST&quot;
+</code></pre></div>
+<h4 id="hmac_sha256">hmac_sha256<a class="headerlink" href="#hmac_sha256" title="Permanent link">&para;</a></h4>
+<p>Computes a SHA256 hash of the value.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>&quot;test&quot;.hmac_sha256() == &quot;9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08&quot;
+</code></pre></div>
+<h4 id="hmac_sha384">hmac_sha384<a class="headerlink" href="#hmac_sha384" title="Permanent link">&para;</a></h4>
+<p>Computes a SHA384 hash of the value.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>&quot;test&quot;.hmac_sha384() == &quot;768412320f7b0aa5812fce428dc4706b3cae50e02a64caa16a782249bfe8efc4b7ef1ccb126255d196047dfedf17a0a9&quot;
+</code></pre></div>
+<h4 id="hmac_sha512">hmac_sha512<a class="headerlink" href="#hmac_sha512" title="Permanent link">&para;</a></h4>
+<p>Computes a SHA512 hash of the value.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>&quot;test&quot;.hmac_sha512() == &quot;ee26b0dd4af7e749aa1a8ee3c10ae9923f618980772e473f8819a5d4940e0db27ac185f8a0e1d5f84f88bc887fd67b143732c304cc5fa9ad8e6f57f50028a8ff&quot;
+</code></pre></div>
+<h4 id="hex_encode">hex_encode<a class="headerlink" href="#hex_encode" title="Permanent link">&para;</a></h4>
+<p>Encodes a string as hexidecimal.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>&quot;test&quot;.hex_encode() == &quot;74657374&quot;
+</code></pre></div>
+<h4 id="hex_decode">hex_decode<a class="headerlink" href="#hex_decode" title="Permanent link">&para;</a></h4>
+<p>Decodes a hexidecimal string.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>&quot;74657374&quot;.hex_decode() == &quot;test&quot;
+</code></pre></div>
+<h4 id="base64_encode">base64_encode<a class="headerlink" href="#base64_encode" title="Permanent link">&para;</a></h4>
+<p>Base64 encodes a string.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>&quot;test&quot;.base64_encode() == &quot;dGVzdA==&quot;
+</code></pre></div>
+<h4 id="base64_decode">base64_decode<a class="headerlink" href="#base64_decode" title="Permanent link">&para;</a></h4>
+<p>Base64 decodes a string.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>&quot;dGVzdA==&quot;.base64_decode() == &quot;test&quot;
+</code></pre></div>
+<h4 id="date">date<a class="headerlink" href="#date" title="Permanent link">&para;</a></h4>
+<p>Converts a string into an internal date representation.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>date(&quot;2024-04-09&quot;) == &quot;2024-04-09T00:00:00Z&quot;
+</code></pre></div>
+<h4 id="today_utc">today_utc<a class="headerlink" href="#today_utc" title="Permanent link">&para;</a></h4>
+<p>Returns today's date in UTC.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>today_utc() == &quot;2024-04-09T00:00:00Z&quot;
+</code></pre></div>
+<h4 id="age">age<a class="headerlink" href="#age" title="Permanent link">&para;</a></h4>
+<p>Returns the number of years from a given date.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>date(&quot;1986-12-11&quot;).age() == 37
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["tabs", "content.code.copy", "announce.dismiss", "header.autohide"], "search": "../assets/javascripts/workers/search.f8cc74c7.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.c8b220af.min.js"></script>
+      
+    
+  </body>
+</html>
