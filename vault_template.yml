@@ -219,9 +219,6 @@ Resources:
               "aws-nitro-enclaves-cli": []
               "aws-nitro-enclaves-acm": []
               "amazon-cloudwatch-agent": []
-              "amazon-ssm-agent": []
-              "openssl-pkcs11":
-                - "0.4.11-8.amzn2023.0.3" # downgrade due to https://github.com/aws/aws-nitro-enclaves-acm/issues/124#issuecomment-1811727731
               "nginx": []
               "unzip": []
           files:
@@ -230,14 +227,6 @@ Resources:
                 [Service]
                 Environment="HTTPS_PROXY=http://placeholder:8080/"
                 Environment="NO_PROXY=.s3.${AWS::Region}.amazonaws.com,kms.${AWS::Region}.amazonaws.com,iam.amazonaws.com"
-              owner: root
-              group: root
-              mode: "000644"
-            "/etc/nitro_enclaves/vsock-proxy.yaml":
-              content: !Sub |-
-                allowlist:
-                - {address: kms.${AWS::Region}.amazonaws.com, port: 443}
-                - {address: kms-fips.${AWS::Region}.amazonaws.com, port: 443}
               owner: root
               group: root
               mode: "000644"
@@ -386,8 +375,8 @@ Resources:
                     include /etc/nginx/conf.d/*.conf;
 
                     server {
-                        listen       443 ssl http2;
-                        listen       [::]:443 ssl http2;
+                        listen       443 ssl;
+                        http2        on;
                         server_name  ${pDomainName};
                         root         /usr/share/nginx/html;
 
@@ -673,6 +662,9 @@ Resources:
             /opt/aws/bin/cfn-init -v --stack "${AWS::StackName}" --resource rLaunchTemplate --region ${AWS::Region} --role "${pInstanceRoleName}"
 
             usermod -aG ne ec2-user
+
+            # Edit the OpenSSL configuration /etc/pki/tls/openssl.cnf
+            sed -i '/ssl_conf = ssl_module/a\engines = engine_section\n\n[engine_section]\npkcs11 = pkcs11_section\n\n[pkcs11_section]\nengine_id = pkcs11\ninit = 1' /etc/pki/tls/openssl.cnf
 
             systemctl enable --now amazon-cloudwatch-agent.service
             systemctl enable --now nitro-enclaves-allocator.service

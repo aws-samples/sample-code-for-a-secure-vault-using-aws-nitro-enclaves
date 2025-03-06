@@ -6,7 +6,7 @@ use std::{
     mem::size_of,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use byteorder::{ByteOrder, LittleEndian};
 use vsock::VsockStream;
 

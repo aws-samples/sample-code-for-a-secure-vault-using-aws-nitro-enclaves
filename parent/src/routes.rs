@@ -11,9 +11,9 @@ use crate::models::{
 };
 use crate::{constants, imds};
 
+use axum::Json;
 use axum::extract::State;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 
 pub async fn health() -> impl IntoResponse {
