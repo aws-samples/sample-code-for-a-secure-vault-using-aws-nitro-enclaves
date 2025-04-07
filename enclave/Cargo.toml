@@ -26,4 +26,6 @@ vsock = { version = "=0.5.1", default-features = false }
 zeroize = { version = "=1.8.1", default-features = false, features = ["zeroize_derive"] }
 
 [target.'cfg(target_env = "musl")'.dependencies]
-mimalloc = { version = "=0.1.45", default-features = false, features = ["extended"] }
+mimalloc = { version = "=0.1.45", default-features = false, features = ["secure"] }
+[target.'cfg(target_env = "musl")'.dependencies]
+libmimalloc-sys = { version = "=0.1.40",  features = ["extended"] }
