@@ -27,4 +27,4 @@ zeroize = { version = "=1.8.1", default-features = false, features = ["zeroize_d
 
 [target.'cfg(target_env = "musl")'.dependencies]
 mimalloc = { version = "=0.1.44", default-features = false, features = ["secure"] }
-libmimalloc-sys = { version = "=0.1.40", default-features = false, features = ["extended"] }
+libmimalloc-sys = { version = "=0.1.41", default-features = false, features = ["extended"] }
