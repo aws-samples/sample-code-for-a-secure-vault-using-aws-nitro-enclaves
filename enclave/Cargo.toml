@@ -14,7 +14,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = { version = "=1.0.97", default-features = false }
-aws-lc-rs = { version = "=1.12.6", default-features = false }
+aws-lc-rs = { version = "=1.13.0", default-features = false }
 byteorder = { version = "=1.5.0", default-features = false }
 cel-interpreter = { version = "=0.9.0", default-features = false, features = ["json", "chrono"] }
 chrono = { version = "=0.4.40", default-features = false, features = ["now"] }
@@ -27,3 +27,4 @@ zeroize = { version = "=1.8.1", default-features = false, features = ["zeroize_d
 
 [target.'cfg(target_env = "musl")'.dependencies]
 mimalloc = { version = "=0.1.44", default-features = false, features = ["secure"] }
+libmimalloc-sys = { version = "=0.1.40", default-features = false, features = ["extended"] }
