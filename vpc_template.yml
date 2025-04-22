@@ -249,6 +249,17 @@ Resources:
         - !Ref rPrivateRouteTable3  # EC2 Route Table
         - !Ref rPrivateRouteTable4  # EC2 Route Table
       ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+      Tags:
+        - Key: Name
+          Value: !Sub "${pResourcePrefix}-vpce-s3"
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rVpcEndpointS3
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
       VpcEndpointType: Gateway
       VpcId: !Ref rVpc
 
@@ -271,6 +282,17 @@ Resources:
         - !Ref rPrivateRouteTable1  # Lambda Route Table
         - !Ref rPrivateRouteTable2  # Lambda Route Table
       ServiceName: !Sub "com.amazonaws.${AWS::Region}.dynamodb"
+      Tags:
+        - Key: Name
+          Value: !Sub "${pResourcePrefix}-vpce-dynamodb"
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rVpcEndpointDynamoDB
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
       VpcEndpointType: Gateway
       VpcId: !Ref rVpc
 
@@ -302,6 +324,17 @@ Resources:
       SubnetIds:
         - !Ref rPrivateSubnet1  # Lambda Subnet AZ1
         - !Ref rPrivateSubnet2  # Lambda Subnet AZ2
+      Tags:
+        - Key: Name
+          Value: !Sub "${pResourcePrefix}-vpce-kms"
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rVpcEndpointKms
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
       VpcEndpointType: Interface
       VpcId: !Ref rVpc
 
@@ -331,6 +364,17 @@ Resources:
       SubnetIds:
         - !Ref rPrivateSubnet3  # EC2 Subnet AZ1
         - !Ref rPrivateSubnet4  # EC2 Subnet AZ2
+      Tags:
+        - Key: Name
+          Value: !Sub "${pResourcePrefix}-vpce-ssm"
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rVpcEndpointSsm
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
       VpcEndpointType: Interface
       VpcId: !Ref rVpc
 
@@ -360,6 +404,17 @@ Resources:
       SubnetIds:
         - !Ref rPrivateSubnet3  # EC2 Subnet AZ1
         - !Ref rPrivateSubnet4  # EC2 Subnet AZ2
+      Tags:
+        - Key: Name
+          Value: !Sub "${pResourcePrefix}-vpce-ssmmessages"
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rVpcEndpointSsmMessages
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
       VpcEndpointType: Interface
       VpcId: !Ref rVpc
 
@@ -389,6 +444,17 @@ Resources:
       SubnetIds:
         - !Ref rPrivateSubnet3  # EC2 Subnet AZ1
         - !Ref rPrivateSubnet4  # EC2 Subnet AZ2
+      Tags:
+        - Key: Name
+          Value: !Sub "${pResourcePrefix}-vpce-ec2messages"
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rVpcEndpointEc2Messages
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
       VpcEndpointType: Interface
       VpcId: !Ref rVpc
 
@@ -416,6 +482,17 @@ Resources:
       SubnetIds:
         - !Ref rPrivateSubnet3  # EC2 Subnet AZ1
         - !Ref rPrivateSubnet4  # EC2 Subnet AZ2
+      Tags:
+        - Key: Name
+          Value: !Sub "${pResourcePrefix}-vpce-cloudformation"
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rVpcEndpointCloudFormation
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
       VpcEndpointType: Interface
       VpcId: !Ref rVpc
 

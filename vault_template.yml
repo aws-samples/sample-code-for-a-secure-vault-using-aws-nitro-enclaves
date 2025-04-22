@@ -624,7 +624,8 @@ Resources:
             Min: 8192
           VCpuCount:
             Min: 8
-        ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-default-x86_64}}"
+        #ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-6.12-x86_64}}"
+        ImageId: ami-090e72bf33b5af2ec  # al2023-ami-minimal-2023.6.20250317.2-kernel-6.1-x86_64
         MetadataOptions:
           HttpEndpoint: enabled
           HttpPutResponseHopLimit: 1
@@ -718,12 +719,20 @@ Resources:
           - AlarmNotification
           - ScheduledActions
     Properties:
+      AvailabilityZoneDistribution:
+        CapacityDistributionStrategy: balanced-only
+      AvailabilityZoneImpairmentPolicy:
+        ImpairedZoneHealthCheckBehavior: IgnoreUnhealthy
+        ZonalShiftEnabled: true
       CapacityRebalance: true
       Cooldown: 0  # zero seconds
       DefaultInstanceWarmup: 10  # seconds
       DesiredCapacity: 1
       HealthCheckType: ELB
       HealthCheckGracePeriod: 10  # seconds
+      InstanceMaintenancePolicy:
+        MaxHealthyPercentage: 200
+        MinHealthyPercentage: 100
       MaxInstanceLifetime: 86400  # recycle instances every day (in seconds)
       MaxSize: 2
       MinSize: 1
@@ -738,11 +747,12 @@ Resources:
             LaunchTemplateId: !Ref rLaunchTemplate
             Version: !GetAtt rLaunchTemplate.LatestVersionNumber
       NewInstancesProtectedFromScaleIn: false
+      SkipZonalShiftValidation: true
       TargetGroupARNs:
         - !Ref rTargetGroup
       TerminationPolicies:
         - OldestInstance
-        - OldestLaunchConfiguration
+        - OldestLaunchTemplate
       VPCZoneIdentifier: !Ref pSubnetIds
 
   rLoadBalancer:
@@ -753,12 +763,15 @@ Resources:
           - id: W52
             reason: "Ignoring access logging"
     Properties:
+      EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic: "off"
       IpAddressType: ipv4
       LoadBalancerAttributes:
         - Key: load_balancing.cross_zone.enabled
           Value: "false"
         - Key: dns_record.client_routing_policy
           Value: availability_zone_affinity
+        - Key: zonal_shift.config.enabled
+          Value: "true"
       Scheme: internal
       SecurityGroups:
         - !Ref rLoadBalancerSecurityGroup

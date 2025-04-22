@@ -23,8 +23,8 @@ fi
 
 printf "\n#################################################################################"
 printf "\n## Please ensure the IAM principal (IAM User or Role) you are using to execute ##"
-printf "\n## this installation script includes a \"network-perimeter-exception\" tag key   ##"
-printf "\n## with a tag value of \"true\" or the installation will fail.                   ##"
+printf "\n## this installation script includes a \"dp:exclude:network\" tag key with a     ##"
+printf "\n## tag value of \"true\" or the installation will fail.                          ##"
 printf "\n#################################################################################\n\n"
 
 STACK_PREFIX=nitro-vault
