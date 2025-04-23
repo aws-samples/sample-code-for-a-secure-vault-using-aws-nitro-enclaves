@@ -5,11 +5,11 @@ use std::process::Command;
 
 use anyhow::{Result, anyhow, bail};
 use aws_lc_rs::encoding::AsBigEndian;
-use aws_lc_rs::signature::EcdsaKeyPair;
+use aws_lc_rs::signature::{EcdsaKeyPair, EcdsaSigningAlgorithm};
 use rustls::crypto::hpke::HpkePrivateKey;
 
 use crate::constants::PLAINTEXT_PREFIX;
-use crate::models::{Credential, EnclaveRequest, Suite};
+use crate::models::{Credential, EnclaveRequest};
 use crate::utils::base64_decode;
 
 fn call_kms_decrypt(credential: &Credential, ciphertext: &str, region: &str) -> Result<String> {
@@ -40,7 +40,10 @@ fn call_kms_decrypt(credential: &Credential, ciphertext: &str, region: &str) -> 
     Ok(String::from_utf8_lossy(output.stdout.as_slice()).to_string())
 }
 
-pub fn get_secret_key(suite: &Suite, payload: &EnclaveRequest) -> Result<HpkePrivateKey> {
+pub fn get_secret_key(
+    alg: &'static EcdsaSigningAlgorithm,
+    payload: &EnclaveRequest,
+) -> Result<HpkePrivateKey> {
     let kms_result = call_kms_decrypt(
         &payload.credential,
         &payload.request.encrypted_private_key, // base64 encoded
@@ -54,7 +57,7 @@ pub fn get_secret_key(suite: &Suite, payload: &EnclaveRequest) -> Result<HpkePri
     // Base64 decode the secret key
     let plaintext_sk = base64_decode(b64_sk)?;
 
-    let alg = suite.get_signing_algorithm()?;
+    //let alg = suite.get_signing_algorithm()?;
 
     // Decode the DER PKCS#8 secret key
     let sk = EcdsaKeyPair::from_private_key_der(alg, &plaintext_sk)

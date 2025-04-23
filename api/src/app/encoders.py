@@ -20,6 +20,7 @@
 """
 
 import abc
+from warnings import deprecated
 
 from app import models, constants
 
@@ -28,10 +29,17 @@ __all__ = ["HexEncoder"]
 
 class BaseEncoder(abc.ABC):
     @abc.abstractmethod
-    def encode(self, data: models.EncryptedData) -> str:
+    def encode(self, data: models.EncryptedData) -> str | bytes:
         raise NotImplementedError
 
 
 class HexEncoder(BaseEncoder):
+    @deprecated("HexEncoder is deprecated, use BinaryEncoder instead")
     def encode(self, data: models.EncryptedData) -> str:
         return f"{data.encapped_key.hex()}{constants.PACK_SEPARATOR}{data.ciphertext.hex()}"
+
+
+class BinaryEncoder(BaseEncoder):
+    def encode(self, data: models.EncryptedData) -> bytes:
+        print(f"encapped_key: {len(data.encapped_key)}, ciphertext: {len(data.ciphertext)}")
+        return data.encapped_key + data.ciphertext

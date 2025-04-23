@@ -13,14 +13,22 @@ use rustls::crypto::aws_lc_rs::hpke::{
     DH_KEM_P256_HKDF_SHA256_AES_256, DH_KEM_P384_HKDF_SHA384_AES_256,
     DH_KEM_P521_HKDF_SHA512_AES_256,
 };
-use rustls::crypto::hpke::Hpke;
+use rustls::crypto::hpke::{Hpke, HpkePrivateKey};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use zeroize::ZeroizeOnDrop;
 
 use crate::constants::{P256, P384, P521};
 
+use crate::hpke::decrypt_value;
+use crate::kms::get_secret_key;
 use crate::utils::base64_decode;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ENCODING {
+    HEX = 1,
+    BINARY = 2,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, ZeroizeOnDrop)]
 pub struct Credential {
@@ -43,12 +51,70 @@ pub struct ParentRequest {
     pub encrypted_private_key: String, // base64 encoded
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expressions: Option<BTreeMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encoding: Option<ENCODING>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnclaveRequest {
     pub credential: Credential,
     pub request: ParentRequest,
+}
+
+impl EnclaveRequest {
+    fn get_private_key(&self, suite: &Suite) -> Result<HpkePrivateKey> {
+        let alg = suite.get_signing_algorithm()?;
+
+        // Decrypt the KMS secret key
+        let sk: HpkePrivateKey = get_secret_key(alg, self)?;
+
+        Ok(sk)
+    }
+
+    pub fn decrypt_fields(&self) -> Result<(BTreeMap<String, Value>, Vec<Error>)> {
+        let suite: Suite = self.request.suite_id.clone().try_into()?;
+
+        let private_key = self.get_private_key(&suite)?;
+        println!("[enclave] decrypted KMS secret key");
+
+        let suite = suite.get_suite()?;
+        let info = self.request.vault_id.as_bytes();
+        let mut errors: Vec<Error> = Vec::new();
+
+        let decrypted_fields = match self.request.encoding {
+            Some(ENCODING::BINARY) => {
+                let mut decrypted_fields = BTreeMap::new();
+                for (field, value) in &self.request.fields {
+                    let encrypted_data = EncryptedData::from_binary(value.as_str())?;
+
+                    let value = decrypt_value(suite, &private_key, info, field, encrypted_data)
+                        .unwrap_or_else(|error| {
+                            errors.push(error);
+                            Value::Null
+                        });
+                    decrypted_fields.insert(field.to_string(), value);
+                }
+                decrypted_fields
+            }
+            _ => {
+                // default HEX encoding
+                let mut decrypted_fields = BTreeMap::new();
+                for (field, value) in &self.request.fields {
+                    let encrypted_data = EncryptedData::from_hex(value.as_str())?;
+
+                    let value = decrypt_value(suite, &private_key, info, field, encrypted_data)
+                        .unwrap_or_else(|error| {
+                            errors.push(error);
+                            Value::Null
+                        });
+                    decrypted_fields.insert(field.to_string(), value);
+                }
+                decrypted_fields
+            }
+        };
+
+        Ok((decrypted_fields, errors))
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -83,10 +149,8 @@ pub struct EncryptedData {
     pub ciphertext: Vec<u8>,
 }
 
-impl TryFrom<&str> for EncryptedData {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &str) -> Result<Self> {
+impl EncryptedData {
+    pub fn from_hex(value: &str) -> Result<Self> {
         let data: EncryptedData = match value.split_once('#') {
             Some((hex_encapped_key, hex_ciphertext)) => {
                 let encapped_key = HEXLOWER
@@ -96,12 +160,28 @@ impl TryFrom<&str> for EncryptedData {
                     .decode(hex_ciphertext.as_bytes())
                     .map_err(|err| anyhow!("unable to hex decode ciphertext: {:?}", err))?;
 
-                EncryptedData {
+                Self {
                     encapped_key,
                     ciphertext,
                 }
             }
             None => bail!("unable to split value on '#': {:?}", value),
+        };
+        Ok(data)
+    }
+
+    pub fn from_binary(value: &str) -> Result<Self> {
+        let data: EncryptedData = match base64_decode(value) {
+            Ok(data) => {
+                let encapped_key = data[0..32].to_vec();
+                let ciphertext = data[32..].to_vec();
+
+                Self {
+                    encapped_key,
+                    ciphertext,
+                }
+            }
+            Err(err) => bail!("unable to base64 decode value: {:?}", err),
         };
         Ok(data)
     }
@@ -115,16 +195,6 @@ impl TryFrom<String> for Suite {
 
     fn try_from(value: String) -> Result<Self> {
         let suite = base64_decode(&value)
-            .map_err(|err| anyhow!("unable to base64 decode suite: {:?}", err))?;
-        Ok(Suite(suite))
-    }
-}
-
-impl TryFrom<&String> for Suite {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &String) -> Result<Self> {
-        let suite = base64_decode(value)
             .map_err(|err| anyhow!("unable to base64 decode suite: {:?}", err))?;
         Ok(Suite(suite))
     }
