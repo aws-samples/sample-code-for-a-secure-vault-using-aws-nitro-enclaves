@@ -65,7 +65,8 @@ mod tests {
         let secret_key: HpkePrivateKey = sk_ref.to_vec().into();
 
         let hex_encrypted_value: String = "04cebfe3667db3305777774f14a7ed4f26ce90b2d68935a30f9b086dc915e6ede23e6dfdde7aaf34dc34cd964c76f94bc91ba99edb3707281862c990c54782eace8c687770d72d4c714d4edd239e010facfb7c3d5c168b14d9040194059529f5e6#80c10441ae55442775bc5d1b0b8465eaaaa33b".to_string();
-        let encrypted_data: EncryptedData = EncryptedData::from_hex(hex_encrypted_value.as_str()).unwrap();
+        let encrypted_data: EncryptedData =
+            EncryptedData::from_hex(hex_encrypted_value.as_str()).unwrap();
 
         let suite = suite.get_suite().unwrap();
         let info = vault_id.as_bytes();
