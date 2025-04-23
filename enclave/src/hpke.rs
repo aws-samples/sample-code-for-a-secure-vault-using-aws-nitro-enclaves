@@ -74,7 +74,7 @@ mod tests {
 
         let expected = json!("Bob");
 
-        let actual = decrypt_value(suite, &secret_key, info, &field, encrypted_data).unwrap();
+        let actual = decrypt_value(suite, &secret_key, info, field, encrypted_data).unwrap();
 
         assert_eq!(actual, expected);
     }
