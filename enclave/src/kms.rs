@@ -57,8 +57,6 @@ pub fn get_secret_key(
     // Base64 decode the secret key
     let plaintext_sk = base64_decode(b64_sk)?;
 
-    //let alg = suite.get_signing_algorithm()?;
-
     // Decode the DER PKCS#8 secret key
     let sk = EcdsaKeyPair::from_private_key_der(alg, &plaintext_sk)
         .map_err(|err| anyhow!("unable to decode PKCS#8 private key: {:?}", err))?;
