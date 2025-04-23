@@ -143,7 +143,7 @@ impl EnclaveResponse {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct EncryptedData {
     pub encapped_key: Vec<u8>,
     pub ciphertext: Vec<u8>,
@@ -173,8 +173,8 @@ impl EncryptedData {
     pub fn from_binary(value: &str) -> Result<Self> {
         let data: EncryptedData = match base64_decode(value) {
             Ok(data) => {
-                let encapped_key = data[0..32].to_vec();
-                let ciphertext = data[32..].to_vec();
+                let encapped_key = data[0..97].to_vec();
+                let ciphertext = data[97..].to_vec();
 
                 Self {
                     encapped_key,
@@ -249,6 +249,37 @@ mod tests {
 
         let actual = suite.get_signing_algorithm().unwrap();
         let expected = &ECDSA_P384_SHA384_ASN1_SIGNING;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_encrypted_data_from_hex() {
+        let hex_encrypted_value: &str = "04cebfe3667db3305777774f14a7ed4f26ce90b2d68935a30f9b086dc915e6ede23e6dfdde7aaf34dc34cd964c76f94bc91ba99edb3707281862c990c54782eace8c687770d72d4c714d4edd239e010facfb7c3d5c168b14d9040194059529f5e6#80c10441ae55442775bc5d1b0b8465eaaaa33b";
+        let actual: EncryptedData = EncryptedData::from_hex(hex_encrypted_value).unwrap();
+
+        let expected = EncryptedData {
+            encapped_key: HEXLOWER
+                .decode("04cebfe3667db3305777774f14a7ed4f26ce90b2d68935a30f9b086dc915e6ede23e6dfdde7aaf34dc34cd964c76f94bc91ba99edb3707281862c990c54782eace8c687770d72d4c714d4edd239e010facfb7c3d5c168b14d9040194059529f5e6".as_bytes())
+                .unwrap(),
+            ciphertext: HEXLOWER
+                .decode("80c10441ae55442775bc5d1b0b8465eaaaa33b".as_bytes())
+                .unwrap(),
+        };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_encrypted_data_from_binary() {
+        let b64_encrypted_value: &str = "BMKVB9Sb897B+mn9bZR7Ad40v3+0n+gTwmrNMUDTnBOl3V3Fw/GCrAacryOs2Vz2sRFPyoQbdCo3YOp/JVRTy3J3CYxMpgdZlQpxU2lRx4YrrXWJ1j627itzLGfUf1z3pcTs06wwett5h/rM3a8I9ZPVfg==";
+        let actual: EncryptedData = EncryptedData::from_binary(b64_encrypted_value).unwrap();
+
+        let binary_encrypted_value: Vec<u8> = base64_decode(b64_encrypted_value).unwrap();
+
+        let expected = EncryptedData {
+            encapped_key: binary_encrypted_value[0..97].to_vec(),
+            ciphertext: binary_encrypted_value[97..].to_vec(),
+        };
+
         assert_eq!(actual, expected);
     }
 }
