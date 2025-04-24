@@ -245,8 +245,8 @@ def decrypt_vault(
 
     payload_fields = {}
     for field in fields:
-        value: Optional[str | bytes] = item.get(field)
-        if isinstance(value, bytes):
+        value: Optional[str | Binary] = item.get(field)
+        if isinstance(value, Binary):
             payload_fields[field] = utils.b64_encode(value)
         else:
             payload_fields[field] = value
