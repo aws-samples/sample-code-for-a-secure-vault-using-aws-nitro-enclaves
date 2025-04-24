@@ -18,17 +18,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use zeroize::ZeroizeOnDrop;
 
-use crate::constants::{P256, P384, P521};
+use crate::constants::{ENCODING_BINARY, P256, P384, P521};
 
 use crate::hpke::decrypt_value;
 use crate::kms::get_secret_key;
 use crate::utils::base64_decode;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ENCODING {
-    HEX = 1,
-    BINARY = 2,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, ZeroizeOnDrop)]
 pub struct Credential {
@@ -52,7 +46,7 @@ pub struct ParentRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expressions: Option<BTreeMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub encoding: Option<ENCODING>,
+    pub encoding: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,8 +75,8 @@ impl EnclaveRequest {
         let info = self.request.vault_id.as_bytes();
         let mut errors: Vec<Error> = Vec::new();
 
-        let decrypted_fields = match self.request.encoding {
-            Some(ENCODING::BINARY) => {
+        let decrypted_fields = match self.request.encoding.as_deref() {
+            Some(ENCODING_BINARY) => {
                 let mut decrypted_fields = BTreeMap::new();
                 for (field, value) in &self.request.fields {
                     let encrypted_data = EncryptedData::from_binary(value.as_str())?;
