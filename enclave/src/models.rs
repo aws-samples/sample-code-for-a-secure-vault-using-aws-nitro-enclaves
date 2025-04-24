@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn test_encrypted_data_from_binary() {
-        let b64_encrypted_value: &str = "BMKVB9Sb897B-mn9bZR7Ad40v3-0n-gTwmrNMUDTnBOl3V3Fw_GCrAacryOs2Vz2sRFPyoQbdCo3YOp_JVRTy3J3CYxMpgdZlQpxU2lRx4YrrXWJ1j627itzLGfUf1z3pcTs06wwett5h_rM3a8I9ZPVfg==";
+        let b64_encrypted_value: &str = "BMKVB9Sb897B+mn9bZR7Ad40v3+0n+gTwmrNMUDTnBOl3V3Fw/GCrAacryOs2Vz2sRFPyoQbdCo3YOp/JVRTy3J3CYxMpgdZlQpxU2lRx4YrrXWJ1j627itzLGfUf1z3pcTs06wwett5h/rM3a8I9ZPVfg==";
         let actual: EncryptedData = EncryptedData::from_binary(b64_encrypted_value).unwrap();
 
         let binary_encrypted_value: Vec<u8> = base64_decode(b64_encrypted_value).unwrap();
