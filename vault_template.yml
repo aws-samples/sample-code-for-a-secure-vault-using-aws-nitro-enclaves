@@ -665,7 +665,7 @@ Resources:
             usermod -aG ne ec2-user
 
             # Edit the OpenSSL configuration /etc/pki/tls/openssl.cnf
-            #sed -i '/ssl_conf = ssl_module/a\engines = engine_section\n\n[engine_section]\npkcs11 = pkcs11_section\n\n[pkcs11_section]\nengine_id = pkcs11\ninit = 1' /etc/pki/tls/openssl.cnf
+            sed -i '/alg_section = evp_properties/a\engines = engine_section\n\n[engine_section]\npkcs11 = pkcs11_section\n\n[ pkcs11_section ]\nengine_id = pkcs11\ninit = 1' /etc/pki/tls/openssl.cnf
 
             systemctl enable --now amazon-cloudwatch-agent.service
             systemctl enable --now nitro-enclaves-allocator.service
