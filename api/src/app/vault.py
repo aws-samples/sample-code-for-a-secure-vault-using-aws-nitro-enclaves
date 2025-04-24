@@ -259,7 +259,7 @@ def decrypt_vault(
         "encrypted_private_key": utils.b64_encode(encrypted_secret_key),
     }
     if encoding_version:
-        payload["encoding"] = encoding_version
+        payload["encoding"] = str(encoding_version)
     if expressions:
         payload["expressions"] = expressions
 
