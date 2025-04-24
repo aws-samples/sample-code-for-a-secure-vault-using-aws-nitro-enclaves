@@ -75,8 +75,8 @@ impl EnclaveRequest {
         let info = self.request.vault_id.as_bytes();
         let mut errors: Vec<Error> = Vec::new();
 
-        let decrypted_fields = match self.request.encoding.as_deref() {
-            Some(ENCODING_BINARY) => {
+        let decrypted_fields = match &self.request.encoding {
+            Some(s) if s == ENCODING_BINARY => {
                 let mut decrypted_fields = BTreeMap::new();
                 for (field, value) in &self.request.fields {
                     let encrypted_data = EncryptedData::from_binary(value.as_str())?;
