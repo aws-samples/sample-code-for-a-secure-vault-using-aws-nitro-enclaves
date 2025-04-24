@@ -106,4 +106,4 @@ def build_key(*args: str) -> str:
 
 
 def b64_encode(value: Union[bytes, Binary]) -> str:
-    return base64.standard_b64encode(bytes(value)).decode()
+    return base64.urlsafe_b64encode(bytes(value)).decode()
