@@ -624,8 +624,7 @@ Resources:
             Min: 8192
           VCpuCount:
             Min: 8
-        #ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-6.12-x86_64}}"
-        ImageId: ami-090e72bf33b5af2ec  # al2023-ami-minimal-2023.6.20250317.2-kernel-6.1-x86_64
+        ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-6.12-x86_64}}"
         MetadataOptions:
           HttpEndpoint: enabled
           HttpPutResponseHopLimit: 1
@@ -665,7 +664,7 @@ Resources:
             usermod -aG ne ec2-user
 
             # Edit the OpenSSL configuration /etc/pki/tls/openssl.cnf
-            sed -i '/ssl_conf = ssl_module/a\engines = engine_section\n\n[engine_section]\npkcs11 = pkcs11_section\n\n[pkcs11_section]\nengine_id = pkcs11\ninit = 1' /etc/pki/tls/openssl.cnf
+            sed -i '/alg_section = evp_properties/a\engines = engine_section\n\n[engine_section]\npkcs11 = pkcs11_section\n\n[ pkcs11_section ]\nengine_id = pkcs11\ninit = 1' /etc/pki/tls/openssl.cnf
 
             systemctl enable --now amazon-cloudwatch-agent.service
             systemctl enable --now nitro-enclaves-allocator.service
