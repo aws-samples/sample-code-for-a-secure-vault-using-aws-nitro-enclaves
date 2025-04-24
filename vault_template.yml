@@ -703,14 +703,14 @@ Resources:
         MinSuccessfulInstancesPercent: 100
       ResourceSignal:
         Count: 1
-        Timeout: PT15M
+        Timeout: PT5M
     UpdatePolicy:
       AutoScalingScheduledAction:
         IgnoreUnmodifiedGroupSizeProperties: true
       AutoScalingRollingUpdate:
         MinInstancesInService: 1
         MaxBatchSize: 2
-        PauseTime: PT15M
+        PauseTime: PT5M
         WaitOnResourceSignals: true
         SuspendProcesses:
           - HealthCheck
