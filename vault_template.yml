@@ -624,8 +624,8 @@ Resources:
             Min: 8192
           VCpuCount:
             Min: 8
-        #ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-6.12-x86_64}}"
-        ImageId: ami-090e72bf33b5af2ec  # al2023-ami-minimal-2023.6.20250317.2-kernel-6.1-x86_64
+        ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-6.12-x86_64}}"
+        #ImageId: ami-090e72bf33b5af2ec  # al2023-ami-minimal-2023.6.20250317.2-kernel-6.1-x86_64
         MetadataOptions:
           HttpEndpoint: enabled
           HttpPutResponseHopLimit: 1
@@ -703,7 +703,7 @@ Resources:
         MinSuccessfulInstancesPercent: 100
       ResourceSignal:
         Count: 1
-        Timeout: PT5M
+        Timeout: PT15M
     UpdatePolicy:
       AutoScalingScheduledAction:
         IgnoreUnmodifiedGroupSizeProperties: true
