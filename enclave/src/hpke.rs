@@ -55,7 +55,7 @@ mod tests {
         let b64_suite_id: String = "SFBLRQARAAIAAg==".to_string();
         let suite: Suite = b64_suite_id.try_into().unwrap();
 
-        let b64_sk = "MIG/AgEAMBAGByqGSM49AgEGBSuBBAAiBIGnMIGkAgEBBDCt+Ad+qIiVIK4e/tj6u+boZ63IAgT2ZttR14ZGjL3XLjNC//WNJcFyNSOGDt2kNE+gBwYFK4EEACKhZANiAASMfDcAvCD3J8in7EzaM6hNvkQD+S6C0H2hI7biRlkHMXcIjZ/7LVNQ2+VMlFAWV8ESbahT0wKiYLNreDvPIDFJOZyzfURR/HTRtf5Vd+aEjXl9EI7XxRu6OILEfQC9afg=";
+        let b64_sk = "MIG_AgEAMBAGByqGSM49AgEGBSuBBAAiBIGnMIGkAgEBBDCt-Ad-qIiVIK4e_tj6u-boZ63IAgT2ZttR14ZGjL3XLjNC__WNJcFyNSOGDt2kNE-gBwYFK4EEACKhZANiAASMfDcAvCD3J8in7EzaM6hNvkQD-S6C0H2hI7biRlkHMXcIjZ_7LVNQ2-VMlFAWV8ESbahT0wKiYLNreDvPIDFJOZyzfURR_HTRtf5Vd-aEjXl9EI7XxRu6OILEfQC9afg=";
         let der_sk = base64_decode(b64_sk).unwrap();
 
         let algo = suite.get_signing_algorithm().unwrap();
