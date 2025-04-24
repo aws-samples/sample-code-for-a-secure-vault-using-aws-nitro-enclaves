@@ -41,5 +41,4 @@ class HexEncoder(BaseEncoder):
 
 class BinaryEncoder(BaseEncoder):
     def encode(self, data: models.EncryptedData) -> bytes:
-        print(f"encapped_key: {len(data.encapped_key)}, ciphertext: {len(data.ciphertext)}")
         return data.encapped_key + data.ciphertext
