@@ -270,7 +270,7 @@ def decrypt_vault(
     try:
         r.raise_for_status()
     except HTTPError:
-        logger.exception("Invalid response received from vault", status_code=r.status_code)
+        logger.exception("Invalid response received from vault", status_code=r.status_code, body=r.text)
         raise exceptions.InternalServerError()
 
     data = r.json()
