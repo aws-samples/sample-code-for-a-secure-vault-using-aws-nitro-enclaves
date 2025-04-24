@@ -138,6 +138,8 @@ pub struct ParentRequest {
     pub encrypted_private_key: String, // base64 encoded
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expressions: Option<BTreeMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encoding: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
