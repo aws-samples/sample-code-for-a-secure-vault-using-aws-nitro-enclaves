@@ -69,7 +69,7 @@ class HpkeAdapter(BaseAdapter):
 
     def encrypt_values(
         self, public_key: bytes, plaintext_values: Dict[str, Any], vault_id: Optional[str] = None
-    ) -> Dict[str, str]:
+    ) -> Dict[str, str | bytes]:
         if not public_key:
             return plaintext_values
         if not plaintext_values:
@@ -78,9 +78,9 @@ class HpkeAdapter(BaseAdapter):
         pk: ec.EllipticCurvePublicKey = serialization.load_der_public_key(public_key)
 
         info = vault_id.encode()
-        encoder = encoders.HexEncoder()
+        encoder = encoders.BinaryEncoder()
 
-        encrypted_values: Dict[str, str] = {}
+        encrypted_values: Dict[str, str | bytes] = {}
 
         for field, value in plaintext_values.items():
             data = self._encrypt_value(

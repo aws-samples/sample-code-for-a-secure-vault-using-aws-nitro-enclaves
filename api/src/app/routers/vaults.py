@@ -46,7 +46,7 @@ ALLOWED_KEYS: List[str] = list(models.VaultSchema.model_fields.keys())
 @router.post("/", summary="Create a vault")
 @tracer.capture_method(capture_response=False)
 def create_vault(
-    body: Annotated[models.CreateVaultRequest, Body(embed=False, example=constants.EXAMPLE_CREATE)]
+    body: Annotated[models.CreateVaultRequest, Body(embed=False, example=constants.EXAMPLE_CREATE)],
 ) -> Dict[str, Any]:
     txn: Optional[resources.TransactionWriter] = router.context.get("txn")
     if not txn:

@@ -5,12 +5,9 @@ use anyhow::{Error, Result, anyhow};
 use enclave_vault::{
     constants::ENCLAVE_PORT,
     expressions::execute_expressions,
-    hpke::decrypt_values,
-    kms::get_secret_key,
-    models::{EnclaveRequest, EnclaveResponse, Suite},
+    models::{EnclaveRequest, EnclaveResponse},
     protocol::{recv_message, send_message},
 };
-use rustls::crypto::hpke::HpkePrivateKey;
 use vsock::{VMADDR_CID_ANY, VsockAddr, VsockListener, VsockStream};
 
 // Avoid musl's default allocator due to terrible performance
@@ -53,22 +50,8 @@ fn handle_client(mut stream: VsockStream) -> Result<()> {
         Err(err) => return send_error(stream, err),
     };
 
-    let vault_id = &payload.request.vault_id;
-    let suite_id = &payload.request.suite_id;
-    let fields = &payload.request.fields;
-
-    let suite: Suite = suite_id.try_into()?;
-
-    // Decrypt the KMS secret key
-    let sk: HpkePrivateKey = match get_secret_key(&suite, &payload) {
-        Ok(sk) => sk,
-        Err(err) => return send_error(stream, err),
-    };
-
-    println!("[enclave] decrypted KMS secret key");
-
     // Decrypt the individual field values
-    let (decrypted_fields, errors) = match decrypt_values(vault_id, &suite, &sk, fields) {
+    let (decrypted_fields, errors) = match payload.decrypt_fields() {
         Ok(result) => result,
         Err(err) => return send_error(stream, err),
     };

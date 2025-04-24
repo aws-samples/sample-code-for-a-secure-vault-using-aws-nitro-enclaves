@@ -24,3 +24,4 @@ from enum import IntEnum
 
 class EncodingVersion(IntEnum):
     HEX = 1  # hex(encap) + '#' + hex(ciphertext)
+    BINARY = 2  # encap + ciphertext

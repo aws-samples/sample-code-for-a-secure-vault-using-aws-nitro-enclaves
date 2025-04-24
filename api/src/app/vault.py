@@ -245,8 +245,10 @@ def decrypt_vault(
 
     payload_fields = {}
     for field in fields:
-        value: Optional[str] = item.get(field)
-        if value:
+        value: Optional[str | Binary] = item.get(field)
+        if isinstance(value, Binary):
+            payload_fields[field] = utils.b64_encode(value)
+        else:
             payload_fields[field] = value
 
     payload = {
@@ -257,7 +259,7 @@ def decrypt_vault(
         "encrypted_private_key": utils.b64_encode(encrypted_secret_key),
     }
     if encoding_version:
-        payload["encoding"] = encoding_version
+        payload["encoding"] = str(encoding_version)
     if expressions:
         payload["expressions"] = expressions
 
@@ -268,7 +270,7 @@ def decrypt_vault(
     try:
         r.raise_for_status()
     except HTTPError:
-        logger.exception("Invalid response received from vault", status_code=r.status_code)
+        logger.exception("Invalid response received from vault", status_code=r.status_code, body=r.text)
         raise exceptions.InternalServerError()
 
     data = r.json()
