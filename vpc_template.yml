@@ -519,7 +519,8 @@ Resources:
     Properties:
       Domains:
         - !Ref pDomainName
-        - !Sub "*.${AWS::URLSuffix}"
+        - !Sub "*.${AWS::URLSuffix}"  # IPv4 endpoints
+        - "*.api.aws"  # dualstack (IPv4/IPv6) endpoints
       Name: !Sub "${pResourcePrefix}-AllowDomains"
       Tags:
         - Key: "aws-cloudformation:stack-name"
