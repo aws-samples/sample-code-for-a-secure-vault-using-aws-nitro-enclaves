@@ -43,6 +43,7 @@ Globals:
     CodeUri: src/
     Environment:
       Variables:
+        AWS_ACCOUNT_ID: !Ref "AWS::AccountId" # use account-based endpoints
         AWS_STS_REGIONAL_ENDPOINTS: regional
         POWERTOOLS_METRICS_NAMESPACE: NitroVault
         TABLE_NAME: !Ref pTableName

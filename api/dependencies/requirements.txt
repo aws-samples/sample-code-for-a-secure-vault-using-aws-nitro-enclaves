@@ -1,4 +1,4 @@
-aws-lambda-powertools[tracer,parser]==3.10.0
+aws-lambda-powertools[tracer,parser]==3.11.0
 cryptography==43.0.3
 hpke==0.3.2
 pksuid==1.1.2
