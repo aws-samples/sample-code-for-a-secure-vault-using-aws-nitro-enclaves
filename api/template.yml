@@ -376,6 +376,7 @@ Resources:
       Description: !Sub "${AWS::StackName} - API"
       Environment:
         Variables:
+          AWS_ACCOUNT_ID: !Ref "AWS::AccountId" # use account-based endpoints
           AWS_STS_REGIONAL_ENDPOINTS: regional
           LOG_LEVEL: DEBUG
           POWERTOOLS_LOGGER_SAMPLE_RATE: 0.1
