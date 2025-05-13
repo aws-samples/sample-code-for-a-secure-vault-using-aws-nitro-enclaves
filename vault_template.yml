@@ -324,7 +324,14 @@ Resources:
 
                 user nginx;
                 worker_processes auto;
-                error_log /var/log/nginx/error.log notice;
+
+                # number of file descriptors used for nginx
+                # the limit for the maximum FDs on the server is usually set by the OS.
+                # if you don't set FD's then OS settings will be used which is by default 2000
+                worker_rlimit_nofile 100000;
+
+                # only log critical errors
+                error_log /var/log/nginx/error.log crit;
                 pid /run/nginx.pid;
                 ssl_engine pkcs11;
 
@@ -332,38 +339,55 @@ Resources:
                 include /usr/share/nginx/modules/*.conf;
 
                 events {
-                    worker_connections 1024;
+                    # determines how much clients will be served per worker
+                    # max clients = worker_connections * worker_processes
+                    # max clients is also limited by the number of socket connections available on the system (~64k)
+                    worker_connections 4000;
+
+                    # optimized to serve many clients with each thread, essential for linux -- for testing environment
+                    use epoll;
+
+                    # accept as many connections as possible, may flood worker connections if set too low -- for testing environment
+                    multi_accept on;
                 }
 
                 http {
-                    log_format json_combined escape=json
-                    '{'
-                      '"time":"$time_iso8601",'
-                      '"process":"$pid",'
-                      '"filename":"$request_filename",'
-                      '"remoteIP":"$remote_addr",'
-                      '"method":"$request_method",'
-                      '"request":"$request_uri",'
-                      '"status":"$status",'
-                      '"responseTime":"$request_time",'
-                      '"referer":"$http_referer",'
-                      '"userAgent":"$http_user_agent",'
-                      '"bytesSent":"$bytes_sent",'
-                      '"bytesReceived":"$request_length",'
-                      '"host":"$host",'
-                      '"connection_requests":"$connection_requests",'
-                      '"connection_active":"$connections_active",'
-                      '"connection_read":"$connections_reading",'
-                      '"connection_write":"$connections_writing",'
-                      '"connection_wait":"$connections_waiting"'
-                    '}';
+                    # cache informations about FDs, frequently accessed files
+                    # can boost performance, but you need to test those values
+                    open_file_cache max=200000 inactive=20s;
+                    open_file_cache_valid 30s;
+                    open_file_cache_min_uses 2;
+                    open_file_cache_errors on;
 
-                    access_log  /var/log/nginx/access.log  json_combined;
+                    # to boost I/O on HDD we can disable access logs
+                    access_log off;
+
                     charset utf-8;
 
-                    sendfile            on;
-                    tcp_nopush          on;
-                    keepalive_timeout   65;
+                    # copies data between one FD and other from within the kernel
+                    # faster than read() + write()
+                    sendfile on;
+
+                    # send headers in one piece, it is better than sending them one by one
+                    tcp_nopush on;
+
+                    # don't buffer data sent, good for small data bursts in real time
+                    # https://brooker.co.za/blog/2024/05/09/nagle.html
+                    # https://news.ycombinator.com/item?id=10608356
+                    tcp_nodelay on;
+
+                    # allow the server to close connection on non responding client, this will free up memory
+                    reset_timedout_connection on;
+
+                    # request timed out -- default 60
+                    client_body_timeout 10;
+
+                    # if client stop responding, free up memory -- default 60
+                    send_timeout 2;
+
+                    # server will close connection after this time -- default 75
+                    keepalive_timeout 30;
+
                     types_hash_max_size 4096;
 
                     include             /etc/nginx/mime.types;
@@ -373,6 +397,8 @@ Resources:
                     # See http://nginx.org/en/docs/ngx_core_module.html#include
                     # for more information.
                     include /etc/nginx/conf.d/*.conf;
+
+                    server_tokens off;
 
                     server {
                         listen       443 ssl;
@@ -393,6 +419,7 @@ Resources:
                             proxy_set_header X-Forwarded-Proto https;
                             proxy_set_header X-Forwarded-Port 443;
                             proxy_set_header Proxy "";
+                            proxy_set_header Connection "";
 
                             proxy_pass http://127.0.0.1:8080;
                             proxy_buffering on;
