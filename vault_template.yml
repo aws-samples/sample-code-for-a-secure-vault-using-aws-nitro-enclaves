@@ -324,7 +324,14 @@ Resources:
 
                 user nginx;
                 worker_processes auto;
-                error_log /var/log/nginx/error.log notice;
+
+                # number of file descriptors used for nginx
+                # the limit for the maximum FDs on the server is usually set by the OS.
+                # if you don't set FD's then OS settings will be used which is by default 2000
+                worker_rlimit_nofile 100000;
+
+                # only log critical errors
+                error_log /var/log/nginx/error.log crit;
                 pid /run/nginx.pid;
                 ssl_engine pkcs11;
 
@@ -332,38 +339,48 @@ Resources:
                 include /usr/share/nginx/modules/*.conf;
 
                 events {
-                    worker_connections 1024;
+                    # determines how much clients will be served per worker
+                    # max clients = worker_connections * worker_processes
+                    # max clients is also limited by the number of socket connections available on the system (~64k)
+                    worker_connections 4000;
+
+                    # optimized to serve many clients with each thread, essential for linux
+                    use epoll;
+
+                    # accept as many connections as possible, may flood worker connections if set too low
+                    multi_accept on;
                 }
 
                 http {
-                    log_format json_combined escape=json
-                    '{'
-                      '"time":"$time_iso8601",'
-                      '"process":"$pid",'
-                      '"filename":"$request_filename",'
-                      '"remoteIP":"$remote_addr",'
-                      '"method":"$request_method",'
-                      '"request":"$request_uri",'
-                      '"status":"$status",'
-                      '"responseTime":"$request_time",'
-                      '"referer":"$http_referer",'
-                      '"userAgent":"$http_user_agent",'
-                      '"bytesSent":"$bytes_sent",'
-                      '"bytesReceived":"$request_length",'
-                      '"host":"$host",'
-                      '"connection_requests":"$connection_requests",'
-                      '"connection_active":"$connections_active",'
-                      '"connection_read":"$connections_reading",'
-                      '"connection_write":"$connections_writing",'
-                      '"connection_wait":"$connections_waiting"'
-                    '}';
+                    # to boost I/O on HDD we can disable access logs
+                    access_log off;
 
-                    access_log  /var/log/nginx/access.log  json_combined;
                     charset utf-8;
 
-                    sendfile            on;
-                    tcp_nopush          on;
-                    keepalive_timeout   65;
+                    # copies data between one FD and other from within the kernel
+                    # faster than read() + write()
+                    sendfile on;
+
+                    # send headers in one piece, it is better than sending them one by one
+                    tcp_nopush on;
+
+                    # don't buffer data sent, good for small data bursts in real time
+                    # https://brooker.co.za/blog/2024/05/09/nagle.html
+                    # https://news.ycombinator.com/item?id=10608356
+                    tcp_nodelay on;
+
+                    # allow the server to close connection on non responding client, this will free up memory
+                    reset_timedout_connection on;
+
+                    # request timed out -- default 60
+                    client_body_timeout 10;
+
+                    # if client stop responding, free up memory -- default 60
+                    send_timeout 2;
+
+                    # server will close connection after this time -- default 75
+                    keepalive_timeout 30;
+
                     types_hash_max_size 4096;
 
                     include             /etc/nginx/mime.types;
@@ -373,6 +390,8 @@ Resources:
                     # See http://nginx.org/en/docs/ngx_core_module.html#include
                     # for more information.
                     include /etc/nginx/conf.d/*.conf;
+
+                    server_tokens off;
 
                     server {
                         listen       443 ssl;
@@ -393,22 +412,29 @@ Resources:
                             proxy_set_header X-Forwarded-Proto https;
                             proxy_set_header X-Forwarded-Port 443;
                             proxy_set_header Proxy "";
+                            proxy_set_header Connection "";
 
                             proxy_pass http://127.0.0.1:8080;
                             proxy_buffering on;
                             proxy_redirect off;
                             proxy_http_version 1.1;
                         }
-
-                        error_page 404 /404.html;
-                            location = /404.html {
-                        }
-
-                        error_page 500 502 503 504 /50x.html;
-                            location = /50x.html {
-                        }
                     }
                 }
+              owner: root
+              group: root
+              mode: "000644"
+            "/etc/pki/tls/openssl.d/openssl-acm.cnf":
+              content: |-
+                [openssl_init]
+                engines = engine_section
+                
+                [engine_section]
+                pkcs11 = pkcs11_section
+                
+                [pkcs11_section]
+                engine_id = pkcs11
+                init = 1
               owner: root
               group: root
               mode: "000644"
@@ -563,6 +589,7 @@ Resources:
                 ensureRunning: true
                 files:
                   - "/etc/nitro_enclaves/acm.yaml"
+                  - "/etc/pki/tls/openssl.d/openssl-acm.cnf"
                 packages:
                   yum:
                     - aws-nitro-enclaves-acm
@@ -663,9 +690,6 @@ Resources:
 
             usermod -aG ne ec2-user
 
-            # Edit the OpenSSL configuration /etc/pki/tls/openssl.cnf
-            sed -i '/alg_section = evp_properties/a\engines = engine_section\n\n[engine_section]\npkcs11 = pkcs11_section\n\n[ pkcs11_section ]\nengine_id = pkcs11\ninit = 1' /etc/pki/tls/openssl.cnf
-
             systemctl enable --now amazon-cloudwatch-agent.service
             systemctl enable --now nitro-enclaves-allocator.service
             systemctl enable --now nitro-enclaves-vsock-proxy.service
@@ -739,7 +763,7 @@ Resources:
         InstancesDistribution:
           OnDemandAllocationStrategy: lowest-price
           OnDemandBaseCapacity: 1
-          OnDemandPercentageAboveBaseCapacity: 0
+          OnDemandPercentageAboveBaseCapacity: 0  # all spot
           SpotAllocationStrategy: price-capacity-optimized
         LaunchTemplate:
           LaunchTemplateSpecification:
