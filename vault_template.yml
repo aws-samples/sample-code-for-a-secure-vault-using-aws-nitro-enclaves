@@ -344,21 +344,14 @@ Resources:
                     # max clients is also limited by the number of socket connections available on the system (~64k)
                     worker_connections 4000;
 
-                    # optimized to serve many clients with each thread, essential for linux -- for testing environment
+                    # optimized to serve many clients with each thread, essential for linux
                     use epoll;
 
-                    # accept as many connections as possible, may flood worker connections if set too low -- for testing environment
+                    # accept as many connections as possible, may flood worker connections if set too low
                     multi_accept on;
                 }
 
                 http {
-                    # cache informations about FDs, frequently accessed files
-                    # can boost performance, but you need to test those values
-                    open_file_cache max=200000 inactive=20s;
-                    open_file_cache_valid 30s;
-                    open_file_cache_min_uses 2;
-                    open_file_cache_errors on;
-
                     # to boost I/O on HDD we can disable access logs
                     access_log off;
 
@@ -425,14 +418,6 @@ Resources:
                             proxy_buffering on;
                             proxy_redirect off;
                             proxy_http_version 1.1;
-                        }
-
-                        error_page 404 /404.html;
-                            location = /404.html {
-                        }
-
-                        error_page 500 502 503 504 /50x.html;
-                            location = /50x.html {
                         }
                     }
                 }
