@@ -1,7 +1,7 @@
 .PHONY: build build-docker build-enclave run-enclave create-private-key clean
 
-ARCH := x86_64
-# ARCH := aarch64
+# ARCH := x86_64
+ARCH := aarch64
 
 RUST_DIR := $(shell readlink -m $(shell dirname $(firstword $(MAKEFILE_LIST))))
 

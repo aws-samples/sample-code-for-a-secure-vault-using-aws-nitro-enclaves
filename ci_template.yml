@@ -1121,9 +1121,6 @@ Resources:
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         EnvironmentVariables:
-          - Name: ARCH
-            Type: PLAINTEXT
-            Value: x86_64
           - Name: INSTANCE_ROLE_ARN
             Type: PLAINTEXT
             Value: !GetAtt rInstanceRole.Arn
@@ -1140,10 +1137,10 @@ Resources:
           - cUseCodeBuildFleet
           - FleetArn: !Ref rCodeBuildFleet
           - !Ref "AWS::NoValue"
-        Image: aws/codebuild/amazonlinux-x86_64-standard:5.0
+        Image:  aws/codebuild/amazonlinux-aarch64-standard:3.0
         ImagePullCredentialsType: CODEBUILD
         PrivilegedMode: true
-        Type: LINUX_CONTAINER
+        Type: ARM_CONTAINER
       LogsConfig:
         CloudWatchLogs:
           Status: ENABLED

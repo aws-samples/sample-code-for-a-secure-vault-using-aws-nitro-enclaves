@@ -629,8 +629,7 @@ Resources:
           BareMetal: excluded
           BurstablePerformance: excluded
           CpuManufacturers:
-            - intel
-            - amd
+            - amazon-web-services
           ExcludedInstanceTypes:
             - "a1*"
             - "c6g*"
@@ -651,7 +650,7 @@ Resources:
             Min: 8192
           VCpuCount:
             Min: 8
-        ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-6.12-x86_64}}"
+        ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-6.12-arm64}}"
         MetadataOptions:
           HttpEndpoint: enabled
           HttpPutResponseHopLimit: 1

@@ -1,7 +1,7 @@
 .PHONY: build build-docker clean
 
-ARCH := x86_64
-# ARCH := aarch64
+# ARCH := x86_64
+ARCH := aarch64
 
 RUST_DIR := $(shell readlink -m $(shell dirname $(firstword $(MAKEFILE_LIST))))
 
