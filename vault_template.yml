@@ -239,7 +239,7 @@ Resources:
                 memory_mib: 4096
                 #
                 # How many CPUs to reserve for enclaves.
-                cpu_count: 6
+                cpu_count: 3
                 #
                 # Alternatively, the exact CPUs to be reserved for the enclave can be explicitly
                 # configured by using `cpu_pool` (like below), instead of `cpu_count`.
@@ -629,8 +629,7 @@ Resources:
           BareMetal: excluded
           BurstablePerformance: excluded
           CpuManufacturers:
-            - intel
-            - amd
+            - amazon-web-services
           ExcludedInstanceTypes:
             - "a1*"
             - "c6g*"
@@ -648,10 +647,10 @@ Resources:
           InstanceGenerations:
             - current
           MemoryMiB:
-            Min: 8192
+            Min: 4096
           VCpuCount:
-            Min: 8
-        ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-6.12-x86_64}}"
+            Min: 4
+        ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-6.12-arm64}}"
         MetadataOptions:
           HttpEndpoint: enabled
           HttpPutResponseHopLimit: 1
