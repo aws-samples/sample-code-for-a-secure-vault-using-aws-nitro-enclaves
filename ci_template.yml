@@ -431,7 +431,7 @@ Resources:
     Properties:
       BaseCapacity: 1
       ComputeType: BUILD_GENERAL1_SMALL
-      EnvironmentType: LINUX_CONTAINER
+      EnvironmentType: ARM_CONTAINER
 
   rPermissionsBoundary:
     Type: "AWS::IAM::ManagedPolicy"
