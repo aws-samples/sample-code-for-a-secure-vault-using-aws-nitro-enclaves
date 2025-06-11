@@ -1137,7 +1137,7 @@ Resources:
           - cUseCodeBuildFleet
           - FleetArn: !Ref rCodeBuildFleet
           - !Ref "AWS::NoValue"
-        Image:  aws/codebuild/amazonlinux-aarch64-standard:3.0
+        Image: aws/codebuild/amazonlinux-aarch64-standard:3.0
         ImagePullCredentialsType: CODEBUILD
         PrivilegedMode: true
         Type: ARM_CONTAINER
