@@ -43,7 +43,7 @@ pub fn execute_expressions(
     for (field, decrypted_value) in fields {
         context
             .add_variable(field, decrypted_value)
-            .map_err(|err| anyhow!("Unable to add variable '{}': {}", field, err))?;
+            .map_err(|err| anyhow!("Unable to add variable '{field}': {err}"))?;
         transformed.insert(field.to_string(), decrypted_value.clone());
     }
 
@@ -53,17 +53,17 @@ pub fn execute_expressions(
         let value: celValue = match program {
             Ok(program) => match program.execute(&context) {
                 Ok(value) => value,
-                Err(err) => format!("Execution Error: {}", err).into(),
+                Err(err) => format!("Execution Error: {err}").into(),
             },
-            Err(err) => format!("Compile Error: {}", err).into(),
+            Err(err) => format!("Compile Error: {err}").into(),
         };
 
         context.add_variable_from_value(field, value.clone());
 
         let result: Value = value
             .json()
-            .map_err(|err| anyhow!("Unable to serialize JSON value: {}", err))?;
-        println!("[enclave] expression: {} = {:?}", expression, result);
+            .map_err(|err| anyhow!("Unable to serialize JSON value: {err}"))?;
+        println!("[enclave] expression: {expression} = {result:?}");
 
         transformed.insert(field.to_string(), result);
     }
