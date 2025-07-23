@@ -27,7 +27,7 @@ fn call_kms_decrypt(credential: &Credential, ciphertext: &str, region: &str) -> 
         .args(["--aws-session-token", credential.session_token.as_str()])
         .args(["--ciphertext", ciphertext])
         .output()
-        .map_err(|err| anyhow!("Unable to call KMS decrypt: {:?}", err))?;
+        .map_err(|err| anyhow!("Unable to call KMS decrypt: {err:?}"))?;
 
     if !output.status.success() {
         bail!(
@@ -49,7 +49,7 @@ pub fn get_secret_key(
         &payload.request.encrypted_private_key, // base64 encoded
         &payload.request.region,
     )
-    .map_err(|err| anyhow!("failed to call KMS: {:?}", err))?;
+    .map_err(|err| anyhow!("failed to call KMS: {err:?}"))?;
 
     // Strip prefix and newline added at https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/bin/kmstool-enclave-cli/main.c#L514
     let b64_sk = kms_result.trim_start_matches(PLAINTEXT_PREFIX).trim_end();
@@ -59,11 +59,11 @@ pub fn get_secret_key(
 
     // Decode the DER PKCS#8 secret key
     let sk = EcdsaKeyPair::from_private_key_der(alg, &plaintext_sk)
-        .map_err(|err| anyhow!("unable to decode PKCS#8 private key: {:?}", err))?;
+        .map_err(|err| anyhow!("unable to decode PKCS#8 private key: {err:?}"))?;
     let sk_bytes = sk
         .private_key()
         .as_be_bytes()
-        .map_err(|err| anyhow!("unable to get private key bytes: {:?}", err))?;
+        .map_err(|err| anyhow!("unable to get private key bytes: {err:?}"))?;
     let sk_ref = sk_bytes.as_ref();
 
     Ok(sk_ref.to_vec().into())
