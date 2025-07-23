@@ -70,8 +70,8 @@ fn handle_client(mut stream: VsockStream) -> Result<()> {
 
     println!("[enclave] sending response to parent");
 
-    if let Err(err) = send_message(&mut stream, payload)
-        .map_err(|err| anyhow!("Failed to send message: {err:?}"))
+    if let Err(err) =
+        send_message(&mut stream, payload).map_err(|err| anyhow!("Failed to send message: {err:?}"))
     {
         return send_error(stream, err);
     }
