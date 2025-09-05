@@ -1,5 +1,8 @@
 name: rust tests
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
