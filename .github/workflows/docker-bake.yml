@@ -1,5 +1,8 @@
 name: docker bake
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
