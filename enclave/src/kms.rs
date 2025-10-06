@@ -33,7 +33,7 @@ fn call_kms_decrypt(credential: &Credential, ciphertext: &str, region: &str) -> 
         bail!(
             "Unable to decrypt key ({:?}): {}",
             output.status.code(),
-            String::from_utf8_lossy(output.stderr.as_slice()).to_string()
+            String::from_utf8_lossy(output.stderr.as_slice())
         );
     }
 
