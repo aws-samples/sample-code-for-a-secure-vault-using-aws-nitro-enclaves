@@ -1,1 +1,1 @@
-aws-lambda-powertools==3.19.0
+aws-lambda-powertools==3.20.0
