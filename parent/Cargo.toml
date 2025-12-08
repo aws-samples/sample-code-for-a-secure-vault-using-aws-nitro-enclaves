@@ -15,18 +15,18 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = { version = "=1.0.100", default-features = false }
-aws-config = { version = "=1.8.7", default-features = false, features = ["rt-tokio", "behavior-version-latest", "default-https-client"] }
-aws-credential-types = { version = "=1.2.8", default-features = false }
+aws-config = { version = "=1.8.10", default-features = false, features = ["rt-tokio", "behavior-version-latest", "default-https-client"] }
+aws-credential-types = { version = "=1.2.10", default-features = false }
 aws-smithy-runtime-api = { version = "=1.9.2", default-features = false, features = ["client"] }
-axum = { version = "=0.8.6", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
+axum = { version = "=0.8.7", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
 byteorder = { version = "=1.5.0", default-features = false }
-clap = { version = "=4.5.51", default-features = false, features = ["std", "derive", "env"] }
+clap = { version = "=4.5.53", default-features = false, features = ["std", "derive", "env"] }
 fastrand = { version = "=2.3.0", default-features = false }
 serde = { version = "=1.0.228", default-features = false, features = ["derive"] }
 serde_json = { version = "=1.0.145", default-features = false }
 thiserror = { version = "=2.0.17", default-features = false }
 tokio = { version = "=1.48.0", default-features = false, features = ["rt-multi-thread", "process", "tracing"] }
-tracing = { version = "=0.1.41", default-features = false, features = ["log"] }
-tracing-subscriber = { version = "=0.3.20", default-features = false, features = ["ansi", "env-filter", "fmt", "json"] }
-vsock = { version = "=0.5.1", default-features = false }
+tracing = { version = "=0.1.43", default-features = false, features = ["log"] }
+tracing-subscriber = { version = "=0.3.22", default-features = false, features = ["ansi", "env-filter", "fmt", "json"] }
+vsock = { version = "=0.5.2", default-features = false }
 zeroize = { version = "=1.8.2", default-features = false, features = ["zeroize_derive"] }
