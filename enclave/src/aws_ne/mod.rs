@@ -17,14 +17,14 @@ use std::slice;
 
 #[cfg(target_os = "linux")]
 use ffi::{
+    AWS_ADDRESS_MAX_LEN, AWS_NE_VSOCK_PROXY_ADDR, AWS_NE_VSOCK_PROXY_PORT, AWS_SOCKET_VSOCK_DOMAIN,
     aws_allocator, aws_byte_buf, aws_byte_buf_clean_up_secure, aws_kms_decrypt_blocking,
     aws_nitro_enclaves_get_allocator, aws_nitro_enclaves_kms_client,
     aws_nitro_enclaves_kms_client_config_default, aws_nitro_enclaves_kms_client_config_destroy,
     aws_nitro_enclaves_kms_client_configuration, aws_nitro_enclaves_kms_client_destroy,
     aws_nitro_enclaves_kms_client_new, aws_nitro_enclaves_library_clean_up,
     aws_nitro_enclaves_library_init, aws_socket_endpoint, aws_string, aws_string_destroy_secure,
-    aws_string_new_from_array, AWS_ADDRESS_MAX_LEN, AWS_NE_VSOCK_PROXY_ADDR,
-    AWS_NE_VSOCK_PROXY_PORT, AWS_SOCKET_VSOCK_DOMAIN,
+    aws_string_new_from_array,
 };
 
 /// Errors that can occur during KMS operations via FFI

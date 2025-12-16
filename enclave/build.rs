@@ -10,7 +10,7 @@ fn main() {
     // Only link against AWS SDK libraries when building for Linux musl target
     // (i.e., inside the Docker build environment for Nitro Enclaves)
     let target = std::env::var("TARGET").unwrap_or_default();
-    
+
     if target.contains("linux-musl") {
         // Add library search path for the AWS SDK libraries
         println!("cargo:rustc-link-search=native=/usr/lib");
