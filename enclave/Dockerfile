@@ -152,14 +152,12 @@ RUN cmake \
 RUN cmake --build aws-nitro-enclaves-sdk-c/build --parallel $(nproc) --target install
 
 ####################################################################################################
-## Chef image
+## Chef image - based on kmstool to have all libraries available
 ####################################################################################################
-FROM public.ecr.aws/docker/library/rust:alpine AS chef
+FROM kmstool AS chef
 ARG TARGETPLATFORM
 
 WORKDIR /app
-RUN apk add --no-cache build-base
-RUN rustup target add $TARGETPLATFORM
 RUN cargo install cargo-chef --locked
 
 ####################################################################################################
@@ -176,7 +174,6 @@ FROM chef AS builder
 ARG TARGETPLATFORM
 
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo install cargo-chef --locked
 RUN cargo chef cook --release --target $TARGETPLATFORM --recipe-path recipe.json
 COPY . .
 RUN cargo build --target $TARGETPLATFORM --release --color never
@@ -195,25 +192,10 @@ WORKDIR /app
 # Copy our build
 COPY --from=builder /app/target/${TARGETPLATFORM}/release/enclave-vault /app/enclave-vault
 
-# Copy shared libraries for FFI wrapper (replacing kmstool_enclave_cli binary)
-# Core AWS libraries
-COPY --from=kmstool /usr/lib/libaws-nitro-enclaves-sdk-c.so* /usr/lib/
-COPY --from=kmstool /usr/lib/libaws-c-common.so* /usr/lib/
-COPY --from=kmstool /usr/lib/libaws-c-sdkutils.so* /usr/lib/
-COPY --from=kmstool /usr/lib/libaws-c-cal.so* /usr/lib/
-COPY --from=kmstool /usr/lib/libaws-c-io.so* /usr/lib/
-COPY --from=kmstool /usr/lib/libaws-c-compression.so* /usr/lib/
-COPY --from=kmstool /usr/lib/libaws-c-http.so* /usr/lib/
-COPY --from=kmstool /usr/lib/libaws-c-auth.so* /usr/lib/
-# TLS and crypto libraries
-COPY --from=kmstool /usr/lib/libs2n.so* /usr/lib/
-COPY --from=kmstool /usr/lib/libcrypto.so* /usr/lib/
-# JSON library
-COPY --from=kmstool /usr/lib/libjson-c.so* /usr/lib/
-# NSM library for attestation
+# Copy NSM library for attestation (only dynamic library needed - others are statically linked)
 COPY --from=kmstool /usr/lib/libnsm.so /usr/lib/libnsm.so
 
-ENV LD_LIBRARY_PATH="/usr/lib":"/lib"
+ENV LD_LIBRARY_PATH="/usr/lib"
 
 RUN chmod +x /app/enclave-vault
 
