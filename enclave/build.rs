@@ -11,10 +11,10 @@ fn main() {
 
     // Link against aws-nitro-enclaves-sdk-c and all its dependencies
     // Order matters: dependent libraries must come after the libraries that use them
-    
+
     // Main SDK library
     println!("cargo:rustc-link-lib=static=aws-nitro-enclaves-sdk-c");
-    
+
     // AWS C libraries (in dependency order)
     println!("cargo:rustc-link-lib=static=aws-c-auth");
     println!("cargo:rustc-link-lib=static=aws-c-http");
@@ -23,16 +23,16 @@ fn main() {
     println!("cargo:rustc-link-lib=static=aws-c-cal");
     println!("cargo:rustc-link-lib=static=aws-c-sdkutils");
     println!("cargo:rustc-link-lib=static=aws-c-common");
-    
+
     // TLS library
     println!("cargo:rustc-link-lib=static=s2n");
-    
+
     // JSON library
     println!("cargo:rustc-link-lib=static=json-c");
-    
+
     // NSM library for attestation (dynamic - built from Rust crate)
     println!("cargo:rustc-link-lib=dylib=nsm");
-    
+
     // Crypto library (from aws-lc build)
     println!("cargo:rustc-link-lib=static=crypto");
 }
