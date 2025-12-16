@@ -2,33 +2,32 @@
 # SPDX-License-Identifier: MIT-0
 
 ####################################################################################################
-## Chef image
+## Builder image - Use AL2023 to match production glibc version
 ####################################################################################################
-FROM public.ecr.aws/docker/library/rust:latest AS chef
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023 AS builder
 ARG TARGETPLATFORM
 
 WORKDIR /app
-RUN apt-get update && apt-get install -y build-essential
+
+# Install build dependencies
+RUN dnf install -y gcc gcc-c++ make openssl-devel pkg-config
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+ENV PATH="/root/.cargo/bin:${PATH}"
 RUN rustup target add $TARGETPLATFORM
+
+# Install cargo-chef for caching
 RUN cargo install cargo-chef --locked
 
-####################################################################################################
-## Planner image
-####################################################################################################
-FROM chef AS planner
+# Prepare recipe
 COPY . .
-RUN cargo chef prepare  --recipe-path recipe.json
+RUN cargo chef prepare --recipe-path recipe.json
 
-####################################################################################################
-## Builder image
-####################################################################################################
-FROM chef AS builder
-ARG TARGETPLATFORM
-
-COPY --from=planner /app/recipe.json recipe.json
-RUN cargo install cargo-chef --locked
+# Cook dependencies
 RUN cargo chef cook --release --target $TARGETPLATFORM --recipe-path recipe.json
-COPY . .
+
+# Build the application
 RUN cargo build --target $TARGETPLATFORM --release --color never
 
 ####################################################################################################
