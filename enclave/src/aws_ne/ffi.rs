@@ -7,7 +7,7 @@
 //! following the pattern from aws-nitro-enclaves-acm.
 
 use libc::c_int;
-#[cfg(target_os = "linux")]
+#[cfg(target_env = "musl")]
 use libc::c_void;
 
 // =============================================================================
@@ -84,7 +84,7 @@ pub struct aws_socket_endpoint {
 // External Function Declarations (Linux only - requires AWS Nitro Enclaves SDK)
 // =============================================================================
 
-#[cfg(target_os = "linux")]
+#[cfg(target_env = "musl")]
 unsafe extern "C" {
     // -------------------------------------------------------------------------
     // SDK Lifecycle

@@ -10,12 +10,12 @@ pub mod ffi;
 
 use std::fmt;
 
-#[cfg(target_os = "linux")]
+#[cfg(target_env = "musl")]
 use std::ptr;
-#[cfg(target_os = "linux")]
+#[cfg(target_env = "musl")]
 use std::slice;
 
-#[cfg(target_os = "linux")]
+#[cfg(target_env = "musl")]
 use ffi::{
     AWS_ADDRESS_MAX_LEN, AWS_NE_VSOCK_PROXY_ADDR, AWS_NE_VSOCK_PROXY_PORT, AWS_SOCKET_VSOCK_DOMAIN,
     aws_allocator, aws_byte_buf, aws_byte_buf_clean_up_secure, aws_kms_decrypt_blocking,
@@ -57,7 +57,7 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 
 /// Helper struct to track allocated resources for cleanup
-#[cfg(target_os = "linux")]
+#[cfg(target_env = "musl")]
 struct KmsResources {
     allocator: *mut aws_allocator,
     region: *mut aws_string,
@@ -69,7 +69,7 @@ struct KmsResources {
     plaintext_buf: Option<aws_byte_buf>,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(target_env = "musl")]
 impl KmsResources {
     fn new() -> Self {
         Self {
@@ -160,7 +160,7 @@ impl KmsResources {
 /// This function contains unsafe code to call C FFI functions. All resources
 /// are properly cleaned up on both success and error paths using secure
 /// cleanup functions that zero memory before freeing.
-#[cfg(target_os = "linux")]
+#[cfg(target_env = "musl")]
 pub fn kms_decrypt(
     aws_region: &[u8],
     aws_key_id: &[u8],
@@ -295,11 +295,11 @@ pub fn kms_decrypt(
     }
 }
 
-/// Stub implementation for non-Linux platforms (compilation only).
+/// Stub implementation for non-musl platforms (compilation only).
 /// This function will panic if called - it's only meant to allow compilation
 /// on development machines. The actual implementation requires the AWS Nitro
-/// Enclaves SDK which is only available on Linux.
-#[cfg(not(target_os = "linux"))]
+/// Enclaves SDK which is only available when building for musl target inside Docker.
+#[cfg(not(target_env = "musl"))]
 pub fn kms_decrypt(
     _aws_region: &[u8],
     _aws_key_id: &[u8],
