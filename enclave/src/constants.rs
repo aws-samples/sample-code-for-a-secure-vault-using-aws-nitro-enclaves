@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT-0
 
 pub const ENCLAVE_PORT: u32 = 5050;
-pub const PLAINTEXT_PREFIX: &str = "PLAINTEXT: ";
 
 // build_suite_id(0x0010u16, 0x0001u16, 0x0002u16) - DH_KEM_P256_HKDF_SHA256_AES_256
 pub const P256: &[u8; 10] = &[72, 80, 75, 69, 0, 16, 0, 1, 0, 2];

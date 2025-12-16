@@ -682,6 +682,7 @@ dependencies = [
  "cel-interpreter",
  "chrono",
  "data-encoding",
+ "libc",
  "mimalloc",
  "rustls",
  "serde",

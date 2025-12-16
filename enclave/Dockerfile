@@ -194,15 +194,27 @@ WORKDIR /app
 
 # Copy our build
 COPY --from=builder /app/target/${TARGETPLATFORM}/release/enclave-vault /app/enclave-vault
-# Copy kmstool_enclave_cli
-COPY --from=kmstool /usr/bin/kmstool_enclave_cli /app/kmstool_enclave_cli
-COPY --from=kmstool /usr/lib64/libnsm.so /usr/lib64/libnsm.so
 
-ENV LD_LIBRARY_PATH="/usr/lib64":"/lib"
+# Copy shared libraries for FFI wrapper (replacing kmstool_enclave_cli binary)
+# Core AWS libraries
+COPY --from=kmstool /usr/lib/libaws-nitro-enclaves-sdk-c.so* /usr/lib/
+COPY --from=kmstool /usr/lib/libaws-c-common.so* /usr/lib/
+COPY --from=kmstool /usr/lib/libaws-c-sdkutils.so* /usr/lib/
+COPY --from=kmstool /usr/lib/libaws-c-cal.so* /usr/lib/
+COPY --from=kmstool /usr/lib/libaws-c-io.so* /usr/lib/
+COPY --from=kmstool /usr/lib/libaws-c-compression.so* /usr/lib/
+COPY --from=kmstool /usr/lib/libaws-c-http.so* /usr/lib/
+COPY --from=kmstool /usr/lib/libaws-c-auth.so* /usr/lib/
+# TLS and crypto libraries
+COPY --from=kmstool /usr/lib/libs2n.so* /usr/lib/
+COPY --from=kmstool /usr/lib/libcrypto.so* /usr/lib/
+# JSON library
+COPY --from=kmstool /usr/lib/libjson-c.so* /usr/lib/
+# NSM library for attestation
+COPY --from=kmstool /usr/lib/libnsm.so /usr/lib/libnsm.so
 
-# RUN ls -lha /app
-# RUN ls -lha /lib
-RUN chmod +x /app/kmstool_enclave_cli
+ENV LD_LIBRARY_PATH="/usr/lib":"/lib"
+
 RUN chmod +x /app/enclave-vault
 
 CMD ["/app/enclave-vault"]

@@ -1,6 +1,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
+pub mod aws_ne;
 pub mod constants;
 pub mod expressions;
 pub mod functions;
