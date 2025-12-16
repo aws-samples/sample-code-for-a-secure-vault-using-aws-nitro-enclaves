@@ -52,7 +52,6 @@ pub struct aws_nitro_enclaves_kms_client_configuration {
     _ph: [u8; 0],
 }
 
-
 // =============================================================================
 // Concrete Structs
 // =============================================================================
@@ -162,7 +161,6 @@ unsafe extern "C" {
     ) -> c_int;
 }
 
-
 // =============================================================================
 // Tests
 // =============================================================================
@@ -180,8 +178,14 @@ mod tests {
     #[test]
     fn test_vsock_constants() {
         // Parent CID should be "3" (ASCII 0x33) followed by null terminator
-        assert_eq!(AWS_NE_VSOCK_PROXY_ADDR[0], 0x33, "Parent CID should be '3' (0x33)");
-        assert_eq!(AWS_NE_VSOCK_PROXY_ADDR[1], 0x00, "Address should be null-terminated");
+        assert_eq!(
+            AWS_NE_VSOCK_PROXY_ADDR[0], 0x33,
+            "Parent CID should be '3' (0x33)"
+        );
+        assert_eq!(
+            AWS_NE_VSOCK_PROXY_ADDR[1], 0x00,
+            "Address should be null-terminated"
+        );
 
         // Proxy port should be 8000
         assert_eq!(AWS_NE_VSOCK_PROXY_PORT, 8000, "Proxy port should be 8000");
