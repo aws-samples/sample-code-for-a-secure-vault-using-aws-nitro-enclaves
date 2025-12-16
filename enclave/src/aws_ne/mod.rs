@@ -9,18 +9,22 @@
 pub mod ffi;
 
 use std::fmt;
+
+#[cfg(target_os = "linux")]
 use std::ptr;
+#[cfg(target_os = "linux")]
 use std::slice;
 
+#[cfg(target_os = "linux")]
 use ffi::{
-    AWS_ADDRESS_MAX_LEN, AWS_NE_VSOCK_PROXY_ADDR, AWS_NE_VSOCK_PROXY_PORT, AWS_SOCKET_VSOCK_DOMAIN,
     aws_allocator, aws_byte_buf, aws_byte_buf_clean_up_secure, aws_kms_decrypt_blocking,
     aws_nitro_enclaves_get_allocator, aws_nitro_enclaves_kms_client,
     aws_nitro_enclaves_kms_client_config_default, aws_nitro_enclaves_kms_client_config_destroy,
     aws_nitro_enclaves_kms_client_configuration, aws_nitro_enclaves_kms_client_destroy,
     aws_nitro_enclaves_kms_client_new, aws_nitro_enclaves_library_clean_up,
     aws_nitro_enclaves_library_init, aws_socket_endpoint, aws_string, aws_string_destroy_secure,
-    aws_string_new_from_array,
+    aws_string_new_from_array, AWS_ADDRESS_MAX_LEN, AWS_NE_VSOCK_PROXY_ADDR,
+    AWS_NE_VSOCK_PROXY_PORT, AWS_SOCKET_VSOCK_DOMAIN,
 };
 
 /// Errors that can occur during KMS operations via FFI
@@ -53,6 +57,7 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 
 /// Helper struct to track allocated resources for cleanup
+#[cfg(target_os = "linux")]
 struct KmsResources {
     allocator: *mut aws_allocator,
     region: *mut aws_string,
@@ -64,6 +69,7 @@ struct KmsResources {
     plaintext_buf: Option<aws_byte_buf>,
 }
 
+#[cfg(target_os = "linux")]
 impl KmsResources {
     fn new() -> Self {
         Self {
@@ -154,6 +160,7 @@ impl KmsResources {
 /// This function contains unsafe code to call C FFI functions. All resources
 /// are properly cleaned up on both success and error paths using secure
 /// cleanup functions that zero memory before freeing.
+#[cfg(target_os = "linux")]
 pub fn kms_decrypt(
     aws_region: &[u8],
     aws_key_id: &[u8],
@@ -286,6 +293,21 @@ pub fn kms_decrypt(
 
         Ok(plaintext)
     }
+}
+
+/// Stub implementation for non-Linux platforms (compilation only).
+/// This function will panic if called - it's only meant to allow compilation
+/// on development machines. The actual implementation requires the AWS Nitro
+/// Enclaves SDK which is only available on Linux.
+#[cfg(not(target_os = "linux"))]
+pub fn kms_decrypt(
+    _aws_region: &[u8],
+    _aws_key_id: &[u8],
+    _aws_secret_key: &[u8],
+    _aws_session_token: &[u8],
+    _ciphertext: &[u8],
+) -> Result<Vec<u8>, Error> {
+    panic!("kms_decrypt is only available on Linux with AWS Nitro Enclaves SDK")
 }
 
 // =============================================================================

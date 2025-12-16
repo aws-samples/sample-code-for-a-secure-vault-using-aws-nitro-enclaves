@@ -6,7 +6,9 @@
 //! This module provides low-level bindings to the aws-nitro-enclaves-sdk-c library,
 //! following the pattern from aws-nitro-enclaves-acm.
 
-use libc::{c_int, c_void};
+use libc::c_int;
+#[cfg(target_os = "linux")]
+use libc::c_void;
 
 // =============================================================================
 // Constants
@@ -79,9 +81,10 @@ pub struct aws_socket_endpoint {
 }
 
 // =============================================================================
-// External Function Declarations
+// External Function Declarations (Linux only - requires AWS Nitro Enclaves SDK)
 // =============================================================================
 
+#[cfg(target_os = "linux")]
 unsafe extern "C" {
     // -------------------------------------------------------------------------
     // SDK Lifecycle

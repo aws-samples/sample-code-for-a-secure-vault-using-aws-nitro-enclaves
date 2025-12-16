@@ -4,35 +4,42 @@
 //! Build script for enclave-vault crate.
 //!
 //! Links against the AWS Nitro Enclaves SDK C libraries required for FFI bindings.
+//! These libraries are only available when building for the musl target (inside Docker).
 
 fn main() {
-    // Add library search path for the AWS SDK libraries
-    println!("cargo:rustc-link-search=native=/usr/lib");
+    // Only link against AWS SDK libraries when building for Linux musl target
+    // (i.e., inside the Docker build environment for Nitro Enclaves)
+    let target = std::env::var("TARGET").unwrap_or_default();
+    
+    if target.contains("linux-musl") {
+        // Add library search path for the AWS SDK libraries
+        println!("cargo:rustc-link-search=native=/usr/lib");
 
-    // Link against aws-nitro-enclaves-sdk-c and all its dependencies
-    // Order matters: dependent libraries must come after the libraries that use them
+        // Link against aws-nitro-enclaves-sdk-c and all its dependencies
+        // Order matters: dependent libraries must come after the libraries that use them
 
-    // Main SDK library
-    println!("cargo:rustc-link-lib=static=aws-nitro-enclaves-sdk-c");
+        // Main SDK library
+        println!("cargo:rustc-link-lib=static=aws-nitro-enclaves-sdk-c");
 
-    // AWS C libraries (in dependency order)
-    println!("cargo:rustc-link-lib=static=aws-c-auth");
-    println!("cargo:rustc-link-lib=static=aws-c-http");
-    println!("cargo:rustc-link-lib=static=aws-c-compression");
-    println!("cargo:rustc-link-lib=static=aws-c-io");
-    println!("cargo:rustc-link-lib=static=aws-c-cal");
-    println!("cargo:rustc-link-lib=static=aws-c-sdkutils");
-    println!("cargo:rustc-link-lib=static=aws-c-common");
+        // AWS C libraries (in dependency order)
+        println!("cargo:rustc-link-lib=static=aws-c-auth");
+        println!("cargo:rustc-link-lib=static=aws-c-http");
+        println!("cargo:rustc-link-lib=static=aws-c-compression");
+        println!("cargo:rustc-link-lib=static=aws-c-io");
+        println!("cargo:rustc-link-lib=static=aws-c-cal");
+        println!("cargo:rustc-link-lib=static=aws-c-sdkutils");
+        println!("cargo:rustc-link-lib=static=aws-c-common");
 
-    // TLS library
-    println!("cargo:rustc-link-lib=static=s2n");
+        // TLS library
+        println!("cargo:rustc-link-lib=static=s2n");
 
-    // JSON library
-    println!("cargo:rustc-link-lib=static=json-c");
+        // JSON library
+        println!("cargo:rustc-link-lib=static=json-c");
 
-    // NSM library for attestation (dynamic - built from Rust crate)
-    println!("cargo:rustc-link-lib=dylib=nsm");
+        // NSM library for attestation (dynamic - built from Rust crate)
+        println!("cargo:rustc-link-lib=dylib=nsm");
 
-    // Crypto library (from aws-lc build)
-    println!("cargo:rustc-link-lib=static=crypto");
+        // Crypto library (from aws-lc build)
+        println!("cargo:rustc-link-lib=static=crypto");
+    }
 }
