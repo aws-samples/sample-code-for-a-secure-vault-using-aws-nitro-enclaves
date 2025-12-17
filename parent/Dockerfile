@@ -45,4 +45,3 @@ WORKDIR /app
 COPY --from=builder /app/target/${TARGETPLATFORM}/release/parent-vault /app/parent-vault
 
 CMD ["/app/parent-vault", "--host", "127.0.0.1"]
-
