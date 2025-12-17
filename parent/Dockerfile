@@ -4,11 +4,13 @@
 ####################################################################################################
 ## Chef image
 ####################################################################################################
-FROM public.ecr.aws/docker/library/rust:latest AS chef
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023 AS chef
 ARG TARGETPLATFORM
 
 WORKDIR /app
-RUN apt-get update && apt-get install -y build-essential
+RUN dnf install -y gcc gcc-c++ make openssl-devel pkg-config
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+ENV PATH="/root/.cargo/bin:${PATH}"
 RUN rustup target add $TARGETPLATFORM
 RUN cargo install cargo-chef --locked
 
