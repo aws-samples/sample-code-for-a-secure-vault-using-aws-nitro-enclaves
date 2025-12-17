@@ -4,15 +4,11 @@
 ####################################################################################################
 ## Builder image - Use AL2023 to match production glibc version
 ####################################################################################################
-FROM public.ecr.aws/amazonlinux/amazonlinux:2023 AS builder
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023 AS chef
 ARG TARGETPLATFORM
 
 WORKDIR /app
-
-# Install build dependencies
 RUN dnf install -y gcc gcc-c++ make openssl-devel pkg-config
-
-# Install Rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
 ENV PATH="/root/.cargo/bin:${PATH}"
 RUN rustup target add $TARGETPLATFORM
