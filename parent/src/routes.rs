@@ -1,6 +1,20 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
+//! HTTP route handlers for the parent vault API.
+//!
+//! This module provides the following endpoints:
+//!
+//! | Method | Path | Handler | Description |
+//! |--------|------|---------|-------------|
+//! | GET | `/health` | [`health`] | Health check endpoint |
+//! | GET | `/enclaves` | [`get_enclaves`] | List running enclaves |
+//! | POST | `/decrypt` | [`decrypt`] | Decrypt vault fields |
+//!
+//! Additional endpoints (currently disabled):
+//! - POST `/enclaves` - Launch a new enclave
+//! - GET `/creds` - Get current IAM credentials
+
 use std::sync::Arc;
 
 use crate::application::AppState;
@@ -17,10 +31,26 @@ use axum::response::IntoResponse;
 use serde_json::json;
 use validator::Validate;
 
+/// Health check endpoint.
+///
+/// Returns a simple JSON response indicating the service is running.
+///
+/// # Response
+///
+/// ```json
+/// {"status": "ok"}
+/// ```
 pub async fn health() -> impl IntoResponse {
     Json(json!({"status": "ok"}))
 }
 
+/// Lists all running Nitro Enclaves.
+///
+/// Returns information about all enclaves that match the vault prefix.
+///
+/// # Response
+///
+/// A JSON array of [`EnclaveDescribeInfo`] objects.
 #[tracing::instrument(skip(state))]
 pub async fn get_enclaves(
     State(state): State<Arc<AppState>>,
@@ -30,6 +60,13 @@ pub async fn get_enclaves(
     Ok(Json(enclaves))
 }
 
+/// Launches a new Nitro Enclave.
+///
+/// This endpoint is currently disabled in the router configuration.
+///
+/// # Response
+///
+/// Returns [`EnclaveRunInfo`] on success.
 #[tracing::instrument(skip(state))]
 pub async fn run_enclave(
     State(state): State<Arc<AppState>>,
@@ -39,6 +76,13 @@ pub async fn run_enclave(
     Ok(Json(run_info))
 }
 
+/// Returns the current IAM credentials.
+///
+/// This endpoint is currently disabled in the router configuration.
+///
+/// # Response
+///
+/// Returns [`Credential`] on success.
 #[tracing::instrument(skip(state))]
 pub async fn get_credentials(
     State(state): State<Arc<AppState>>,
@@ -47,16 +91,35 @@ pub async fn get_credentials(
     Ok(Json(credentials))
 }
 
+/// Decrypts vault fields using a Nitro Enclave.
+///
+/// This is the main endpoint for decrypting PII/PHI data stored in the vault.
+/// The request is validated, then forwarded to an available enclave over vsock.
+///
+/// # Request Flow
+///
+/// 1. Validate the incoming [`ParentRequest`]
+/// 2. Fetch IAM credentials from the cache (or IMDS if expired)
+/// 3. Select a random available enclave for load balancing
+/// 4. Send the request to the enclave over vsock
+/// 5. Return the decrypted response
+///
+/// # Errors
+///
+/// - [`AppError::ValidationError`] - Request validation failed
+/// - [`AppError::EnclaveNotFound`] - No enclaves available
+/// - [`AppError::InternalServerError`] - Credential or enclave communication failure
 #[tracing::instrument(skip(state, request))]
 pub async fn decrypt(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ParentRequest>,
 ) -> Result<Json<ParentResponse>, AppError> {
-    // Validate request
+    // 1. Validate incoming request against size limits and format rules
     request
         .validate()
         .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
+    // 2. Fetch (or use cached) IAM credentials from IMDS
     let credential = state.credentials.get_credentials().await?;
 
     let request = EnclaveRequest {
@@ -64,11 +127,13 @@ pub async fn decrypt(
         request,
     };
 
+    // 3. Get available enclaves and select one randomly for load balancing
     let enclaves: Vec<EnclaveDescribeInfo> = state.enclaves.get_enclaves().await;
     if enclaves.is_empty() {
         return Err(AppError::EnclaveNotFound);
     }
 
+    // Random selection provides simple load balancing across enclaves
     let index = fastrand::usize(..enclaves.len());
     let cid: u32 = enclaves[index]
         .enclave_cid
@@ -77,6 +142,8 @@ pub async fn decrypt(
 
     tracing::debug!("[parent] sending decrypt request to CID: {:?}", cid);
 
+    // 4. Send request to enclave via vsock (blocking operation)
+    // spawn_blocking is used because vsock I/O is synchronous
     let enclaves_ref = state.enclaves.clone();
     let port = constants::ENCLAVE_PORT;
     let response: EnclaveResponse =
@@ -86,10 +153,45 @@ pub async fn decrypt(
 
     tracing::debug!("[parent] received response from CID: {:?}", cid);
 
+    // 5. Transform enclave response to parent response format
     let response = ParentResponse {
         fields: response.fields.unwrap_or_default(),
         errors: response.errors,
     };
 
     Ok(Json(response))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::to_bytes;
+    use axum::http::StatusCode;
+
+    #[tokio::test]
+    async fn test_health_returns_ok() {
+        let response = health().await.into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["status"], "ok");
+    }
+
+    #[tokio::test]
+    async fn test_health_response_structure() {
+        let response = health().await.into_response();
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        // Should have exactly one key
+        assert_eq!(json.as_object().unwrap().len(), 1);
+        assert!(json.get("status").is_some());
+    }
+
+    // Note: Testing get_enclaves, run_enclave, get_credentials, and decrypt
+    // requires setting up AppState with mocked dependencies. These are better
+    // suited for integration tests in tests/integration/.
+    //
+    // The tests above verify the health endpoint which has no dependencies.
 }

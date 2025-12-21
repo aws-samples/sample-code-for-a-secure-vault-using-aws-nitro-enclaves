@@ -7,7 +7,6 @@ phases:
   build:
     commands:
       - echo Build started on `date`
-      - export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
       - docker buildx bake
       - echo Build completed on `date`
   post_build:

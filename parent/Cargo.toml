@@ -33,3 +33,9 @@ tracing = { version = "=0.1.43", default-features = false, features = ["log"] }
 tracing-subscriber = { version = "=0.3.22", default-features = false, features = ["ansi", "env-filter", "fmt", "json"] }
 vsock = { version = "=0.5.2", default-features = false }
 zeroize = { version = "=1.8.2", default-features = false, features = ["zeroize_derive"] }
+
+[dev-dependencies]
+tokio-test = { version = "=0.4.4", default-features = false }
+axum-test = { version = "=18.4.1", default-features = false }
+wiremock = { version = "=0.6.5", default-features = false }
+claim = { version = "=0.5.0", default-features = false }
