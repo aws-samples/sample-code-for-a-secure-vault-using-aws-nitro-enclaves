@@ -72,8 +72,8 @@ impl Enclaves {
         let mut enclaves_writer = self.enclaves.write().await;
         enclaves_writer.clear();
         enclaves_writer.extend(enclaves.into_iter().filter(|e| {
-            e.clone()
-                .enclave_name
+            e.enclave_name
+                .as_ref()
                 .is_some_and(|name| name.starts_with(ENCLAVE_PREFIX))
         }));
 
@@ -115,7 +115,7 @@ impl Enclaves {
 
         let msg = json!(payload).to_string();
 
-        tracing::trace!("[parent] sending message {:?}", msg);
+        tracing::trace!("[parent] sending message ({} bytes)", msg.len());
 
         send_message(&mut stream, msg)?;
 
@@ -123,7 +123,10 @@ impl Enclaves {
 
         let result: EnclaveResponse = serde_json::from_slice(&response)?;
 
-        tracing::trace!("[parent] received message {:?}", result);
+        tracing::trace!(
+            "[parent] received response with {} fields",
+            result.fields.as_ref().map_or(0, |f| f.len())
+        );
 
         Ok(result)
     }

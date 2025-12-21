@@ -19,6 +19,10 @@ pub enum AppError {
     DecryptError,
     #[error("internal server error")]
     InternalServerError,
+    #[error("validation error: {0}")]
+    ValidationError(String),
+    #[error("configuration error: {0}")]
+    ConfigError(String),
 }
 
 impl IntoResponse for AppError {
@@ -35,6 +39,8 @@ impl IntoResponse for AppError {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Internal Server Error".to_string(),
             ),
+            Self::ValidationError(msg) => (StatusCode::BAD_REQUEST, msg),
+            Self::ConfigError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
         };
 
         let body = Json(json!({"code": status.as_u16(), "message": message}));

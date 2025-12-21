@@ -4,17 +4,18 @@
 use std::sync::Arc;
 
 use crate::application::AppState;
+use crate::constants;
 use crate::errors::AppError;
 use crate::models::{
     Credential, EnclaveDescribeInfo, EnclaveRequest, EnclaveResponse, EnclaveRunInfo,
     ParentRequest, ParentResponse,
 };
-use crate::{constants, imds};
 
 use axum::Json;
 use axum::extract::State;
 use axum::response::IntoResponse;
 use serde_json::json;
+use validator::Validate;
 
 pub async fn health() -> impl IntoResponse {
     Json(json!({"status": "ok"}))
@@ -42,8 +43,7 @@ pub async fn run_enclave(
 pub async fn get_credentials(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Credential>, AppError> {
-    let profile = state.options.role.clone();
-    let credentials = imds::load_credentials(profile).await?;
+    let credentials = state.credentials.get_credentials().await?;
     Ok(Json(credentials))
 }
 
@@ -52,8 +52,12 @@ pub async fn decrypt(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ParentRequest>,
 ) -> Result<Json<ParentResponse>, AppError> {
-    let profile = state.options.role.clone();
-    let credential = imds::load_credentials(profile).await?;
+    // Validate request
+    request
+        .validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+
+    let credential = state.credentials.get_credentials().await?;
 
     let request = EnclaveRequest {
         credential,
@@ -65,19 +69,20 @@ pub async fn decrypt(
         return Err(AppError::EnclaveNotFound);
     }
 
-    let mut rng = fastrand::Rng::with_seed(0);
-    let index = rng.usize(..enclaves.len());
+    let index = fastrand::usize(..enclaves.len());
     let cid: u32 = enclaves[index]
         .enclave_cid
         .try_into()
-        .expect("Invalid enclave CID");
+        .map_err(|_| AppError::InternalServerError)?;
 
     tracing::debug!("[parent] sending decrypt request to CID: {:?}", cid);
 
+    let enclaves_ref = state.enclaves.clone();
+    let port = constants::ENCLAVE_PORT;
     let response: EnclaveResponse =
-        state
-            .enclaves
-            .decrypt(cid, constants::ENCLAVE_PORT, request)?;
+        tokio::task::spawn_blocking(move || enclaves_ref.decrypt(cid, port, request))
+            .await
+            .map_err(|_| AppError::InternalServerError)??;
 
     tracing::debug!("[parent] received response from CID: {:?}", cid);
 

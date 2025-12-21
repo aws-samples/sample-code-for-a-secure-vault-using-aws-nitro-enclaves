@@ -10,6 +10,8 @@ use anyhow::{Result, anyhow};
 use byteorder::{ByteOrder, LittleEndian};
 use vsock::VsockStream;
 
+use crate::constants::MAX_MESSAGE_SIZE;
+
 #[tracing::instrument(skip(stream, msg))]
 pub fn send_message(stream: &mut VsockStream, msg: String) -> Result<()> {
     // write message length
@@ -20,7 +22,7 @@ pub fn send_message(stream: &mut VsockStream, msg: String) -> Result<()> {
     let mut header_buf = [0; size_of::<u64>()];
     LittleEndian::write_u64(&mut header_buf, payload_len);
     stream
-        .write(&header_buf)
+        .write_all(&header_buf)
         .map_err(|err| anyhow!("failed to write message header: {:?}", err))?;
 
     // write message body
@@ -40,8 +42,15 @@ pub fn recv_message(stream: &mut VsockStream) -> Result<Vec<u8>> {
         .read_exact(&mut size_buf)
         .map_err(|err| anyhow!("failed to read message header: {:?}", err))?;
 
-    // Convert the size buffer to u64
+    // Convert the size buffer to u64 and validate
     let size = LittleEndian::read_u64(&size_buf);
+    if size > MAX_MESSAGE_SIZE {
+        return Err(anyhow!(
+            "message size {} exceeds maximum allowed size {}",
+            size,
+            MAX_MESSAGE_SIZE
+        ));
+    }
 
     // Create a buffer of the size we just read
     let mut payload_buffer = vec![0; size as usize];
