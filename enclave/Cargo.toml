@@ -28,3 +28,6 @@ zeroize = { version = "=1.8.2", default-features = false, features = ["zeroize_d
 
 [target.'cfg(target_env = "musl")'.dependencies]
 mimalloc = { version = "=0.1.48", default-features = false, features = ["secure"] }
+
+[dev-dependencies]
+proptest = { version = "1.4", default-features = false, features = ["std"] }

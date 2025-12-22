@@ -52,13 +52,13 @@ mod tests {
     #[test]
     fn test_decrypt_value() {
         let vault_id = "v_2hRK9u2DOzmAPMhdVNt9qlJ3UvL";
-        let b64_suite_id: String = "SFBLRQARAAIAAg==".to_string();
+        let b64_suite_id: &str = "SFBLRQARAAIAAg==";
         let suite: Suite = b64_suite_id.try_into().unwrap();
 
         let b64_sk = "MIG/AgEAMBAGByqGSM49AgEGBSuBBAAiBIGnMIGkAgEBBDCt+Ad+qIiVIK4e/tj6u+boZ63IAgT2ZttR14ZGjL3XLjNC//WNJcFyNSOGDt2kNE+gBwYFK4EEACKhZANiAASMfDcAvCD3J8in7EzaM6hNvkQD+S6C0H2hI7biRlkHMXcIjZ/7LVNQ2+VMlFAWV8ESbahT0wKiYLNreDvPIDFJOZyzfURR/HTRtf5Vd+aEjXl9EI7XxRu6OILEfQC9afg=";
         let der_sk = base64_decode(b64_sk).unwrap();
 
-        let algo = suite.get_signing_algorithm().unwrap();
+        let algo = suite.get_signing_algorithm();
         let sk = EcdsaKeyPair::from_private_key_der(algo, &der_sk).unwrap();
         let sk_bytes = sk.private_key().as_be_bytes().unwrap();
         let sk_ref = sk_bytes.as_ref();
@@ -68,13 +68,13 @@ mod tests {
         let encrypted_data: EncryptedData =
             EncryptedData::from_hex(hex_encrypted_value.as_str()).unwrap();
 
-        let suite = suite.get_suite().unwrap();
+        let hpke_suite = suite.get_hpke_suite();
         let info = vault_id.as_bytes();
         let field = "first_name";
 
         let expected = json!("Bob");
 
-        let actual = decrypt_value(suite, &secret_key, info, field, encrypted_data).unwrap();
+        let actual = decrypt_value(hpke_suite, &secret_key, info, field, encrypted_data).unwrap();
 
         assert_eq!(actual, expected);
     }

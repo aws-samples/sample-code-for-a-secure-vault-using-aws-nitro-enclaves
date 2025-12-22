@@ -57,7 +57,7 @@ pub struct EnclaveRequest {
 
 impl EnclaveRequest {
     fn get_private_key(&self, suite: &Suite) -> Result<HpkePrivateKey> {
-        let alg = suite.get_signing_algorithm()?;
+        let alg = suite.get_signing_algorithm();
 
         // Decrypt the KMS secret key
         let sk: HpkePrivateKey = get_secret_key(alg, self)?;
@@ -66,12 +66,12 @@ impl EnclaveRequest {
     }
 
     pub fn decrypt_fields(&self) -> Result<(BTreeMap<String, Value>, Vec<Error>)> {
-        let suite: Suite = self.request.suite_id.clone().try_into()?;
+        let suite: Suite = self.request.suite_id.as_str().try_into()?;
 
         let private_key = self.get_private_key(&suite)?;
         println!("[enclave] decrypted KMS secret key");
 
-        let suite = suite.get_suite()?;
+        let hpke_suite = suite.get_hpke_suite();
         let info = self.request.vault_id.as_bytes();
         let mut errors: Vec<Error> = Vec::new();
 
@@ -82,9 +82,9 @@ impl EnclaveRequest {
             Some(encoding) if encoding == ENCODING_BINARY => {
                 let mut decrypted_fields = BTreeMap::new();
                 for (field, value) in &self.request.fields {
-                    let encrypted_data = EncryptedData::from_binary(value.as_str())?;
+                    let encrypted_data = EncryptedData::from_binary(value.as_str(), &suite)?;
 
-                    let value = decrypt_value(suite, &private_key, info, field, encrypted_data)
+                    let value = decrypt_value(hpke_suite, &private_key, info, field, encrypted_data)
                         .unwrap_or_else(|error| {
                             errors.push(error);
                             Value::Null
@@ -99,7 +99,7 @@ impl EnclaveRequest {
                 for (field, value) in &self.request.fields {
                     let encrypted_data = EncryptedData::from_hex(value.as_str())?;
 
-                    let value = decrypt_value(suite, &private_key, info, field, encrypted_data)
+                    let value = decrypt_value(hpke_suite, &private_key, info, field, encrypted_data)
                         .unwrap_or_else(|error| {
                             errors.push(error);
                             Value::Null
@@ -167,86 +167,226 @@ impl EncryptedData {
         Ok(data)
     }
 
-    pub fn from_binary(value: &str) -> Result<Self> {
-        let data: EncryptedData = match base64_decode(value) {
-            Ok(data) => {
-                let encapped_key = data[0..97].to_vec();
-                let ciphertext = data[97..].to_vec();
+    pub fn from_binary(value: &str, suite: &Suite) -> Result<Self> {
+        let data = base64_decode(value)
+            .map_err(|err| anyhow!("unable to base64 decode value: {:?}", err))?;
 
-                Self {
-                    encapped_key,
-                    ciphertext,
-                }
-            }
-            Err(err) => bail!("unable to base64 decode value: {:?}", err),
-        };
-        Ok(data)
+        let key_size = suite.encapped_key_size();
+
+        if data.len() < key_size {
+            bail!(
+                "encrypted data too short: {} bytes, need at least {} for {:?}",
+                data.len(),
+                key_size,
+                suite
+            );
+        }
+
+        Ok(Self {
+            encapped_key: data[..key_size].to_vec(),
+            ciphertext: data[key_size..].to_vec(),
+        })
     }
 }
 
-#[derive(Debug)]
-pub struct Suite(pub Vec<u8>);
+/// HPKE cipher suite identifier
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Suite {
+    /// P-256 curve with HKDF-SHA256 and AES-256-GCM
+    P256,
+    /// P-384 curve with HKDF-SHA384 and AES-256-GCM
+    P384,
+    /// P-521 curve with HKDF-SHA512 and AES-256-GCM
+    P521,
+}
+
+impl Suite {
+    /// Returns the encapped key size in bytes for this suite (RFC 9180 Nenc value)
+    pub fn encapped_key_size(&self) -> usize {
+        match self {
+            Suite::P256 => 65,
+            Suite::P384 => 97,
+            Suite::P521 => 133,
+        }
+    }
+
+    /// Returns the HPKE suite implementation
+    pub fn get_hpke_suite(&self) -> &'static dyn Hpke {
+        match self {
+            Suite::P256 => DH_KEM_P256_HKDF_SHA256_AES_256,
+            Suite::P384 => DH_KEM_P384_HKDF_SHA384_AES_256,
+            Suite::P521 => DH_KEM_P521_HKDF_SHA512_AES_256,
+        }
+    }
+
+    /// Returns the ECDSA signing algorithm for this suite
+    pub fn get_signing_algorithm(&self) -> &'static EcdsaSigningAlgorithm {
+        match self {
+            Suite::P256 => &ECDSA_P256_SHA256_ASN1_SIGNING,
+            Suite::P384 => &ECDSA_P384_SHA384_ASN1_SIGNING,
+            Suite::P521 => &ECDSA_P521_SHA512_ASN1_SIGNING,
+        }
+    }
+
+    /// Returns the HPKE suite implementation (alias for backward compatibility)
+    pub fn get_suite(&self) -> &'static dyn Hpke {
+        self.get_hpke_suite()
+    }
+}
+
+impl TryFrom<&str> for Suite {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &str) -> Result<Self> {
+        let bytes = base64_decode(value)?;
+        match bytes.as_slice() {
+            s if s == P256 => Ok(Suite::P256),
+            s if s == P384 => Ok(Suite::P384),
+            s if s == P521 => Ok(Suite::P521),
+            _ => bail!("unknown suite identifier"),
+        }
+    }
+}
 
 impl TryFrom<String> for Suite {
     type Error = anyhow::Error;
 
     fn try_from(value: String) -> Result<Self> {
-        let suite = base64_decode(&value)
-            .map_err(|err| anyhow!("unable to base64 decode suite: {:?}", err))?;
-        Ok(Suite(suite))
-    }
-}
-
-impl Suite {
-    pub fn get_suite(&self) -> Result<&dyn Hpke> {
-        let suite_id = self.0.as_slice();
-
-        if suite_id == P256 {
-            return Ok(DH_KEM_P256_HKDF_SHA256_AES_256);
-        } else if suite_id == P384 {
-            return Ok(DH_KEM_P384_HKDF_SHA384_AES_256);
-        } else if suite_id == P521 {
-            return Ok(DH_KEM_P521_HKDF_SHA512_AES_256);
-        }
-        bail!("invalid suite_id")
-    }
-
-    pub fn get_signing_algorithm(&self) -> Result<&'static EcdsaSigningAlgorithm> {
-        let suite_id = self.0.as_slice();
-
-        if suite_id == P256 {
-            return Ok(&ECDSA_P256_SHA256_ASN1_SIGNING);
-        } else if suite_id == P384 {
-            return Ok(&ECDSA_P384_SHA384_ASN1_SIGNING);
-        } else if suite_id == P521 {
-            return Ok(&ECDSA_P521_SHA512_ASN1_SIGNING);
-        }
-        bail!("invalid suite_id")
+        Suite::try_from(value.as_str())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
+    // **Feature: enclave-improvements, Property 1: Suite enum correctness**
+    // **Validates: Requirements 1.1, 9.3**
+    //
+    // *For any* Suite variant (P256, P384, P521), the `encapped_key_size()` method
+    // SHALL return the correct size (65, 97, 133 bytes respectively),
+    // `get_hpke_suite()` SHALL return the corresponding HPKE implementation,
+    // and `get_signing_algorithm()` SHALL return the matching ECDSA algorithm.
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        #[test]
+        fn prop_suite_encapped_key_size_correctness(suite_idx in 0usize..3) {
+            let suites = [Suite::P256, Suite::P384, Suite::P521];
+            let expected_sizes = [65usize, 97, 133];
+
+            let suite = suites[suite_idx];
+            let expected_size = expected_sizes[suite_idx];
+
+            prop_assert_eq!(
+                suite.encapped_key_size(),
+                expected_size,
+                "Suite {:?} should have encapped_key_size of {} bytes",
+                suite,
+                expected_size
+            );
+        }
+
+        #[test]
+        fn prop_suite_hpke_suite_correctness(suite_idx in 0usize..3) {
+            let suites = [Suite::P256, Suite::P384, Suite::P521];
+            let expected_hpke_suites = [
+                DH_KEM_P256_HKDF_SHA256_AES_256.suite(),
+                DH_KEM_P384_HKDF_SHA384_AES_256.suite(),
+                DH_KEM_P521_HKDF_SHA512_AES_256.suite(),
+            ];
+
+            let suite = suites[suite_idx];
+            let expected_hpke = expected_hpke_suites[suite_idx];
+
+            prop_assert_eq!(
+                suite.get_hpke_suite().suite(),
+                expected_hpke,
+                "Suite {:?} should return the correct HPKE suite",
+                suite
+            );
+        }
+
+        #[test]
+        fn prop_suite_signing_algorithm_correctness(suite_idx in 0usize..3) {
+            let suites = [Suite::P256, Suite::P384, Suite::P521];
+            let expected_algorithms: [&'static EcdsaSigningAlgorithm; 3] = [
+                &ECDSA_P256_SHA256_ASN1_SIGNING,
+                &ECDSA_P384_SHA384_ASN1_SIGNING,
+                &ECDSA_P521_SHA512_ASN1_SIGNING,
+            ];
+
+            let suite = suites[suite_idx];
+            let expected_alg = expected_algorithms[suite_idx];
+
+            prop_assert_eq!(
+                suite.get_signing_algorithm(),
+                expected_alg,
+                "Suite {:?} should return the correct signing algorithm",
+                suite
+            );
+        }
+    }
 
     #[test]
     fn test_get_suite() {
-        let b64_suite_id: String = "SFBLRQARAAIAAg==".to_string();
+        let b64_suite_id: &str = "SFBLRQARAAIAAg==";
         let suite: Suite = b64_suite_id.try_into().unwrap();
 
-        let actual = suite.get_suite().unwrap();
+        let actual = suite.get_hpke_suite();
         let expected = DH_KEM_P384_HKDF_SHA384_AES_256.suite();
         assert_eq!(actual.suite(), expected);
     }
 
     #[test]
     fn test_get_signing_algorithm() {
-        let b64_suite_id: String = "SFBLRQARAAIAAg==".to_string();
+        let b64_suite_id: &str = "SFBLRQARAAIAAg==";
         let suite: Suite = b64_suite_id.try_into().unwrap();
 
-        let actual = suite.get_signing_algorithm().unwrap();
+        let actual = suite.get_signing_algorithm();
         let expected = &ECDSA_P384_SHA384_ASN1_SIGNING;
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_suite_encapped_key_sizes() {
+        assert_eq!(Suite::P256.encapped_key_size(), 65);
+        assert_eq!(Suite::P384.encapped_key_size(), 97);
+        assert_eq!(Suite::P521.encapped_key_size(), 133);
+    }
+
+    #[test]
+    fn test_suite_try_from_str() {
+        // P256 suite ID
+        let p256_b64 = "SFBLRQAQAAEAAg==";
+        let suite: Suite = p256_b64.try_into().unwrap();
+        assert_eq!(suite, Suite::P256);
+
+        // P384 suite ID
+        let p384_b64 = "SFBLRQARAAIAAg==";
+        let suite: Suite = p384_b64.try_into().unwrap();
+        assert_eq!(suite, Suite::P384);
+
+        // P521 suite ID
+        let p521_b64 = "SFBLRQASAAMAAg==";
+        let suite: Suite = p521_b64.try_into().unwrap();
+        assert_eq!(suite, Suite::P521);
+    }
+
+    #[test]
+    fn test_suite_try_from_string() {
+        let p384_b64 = "SFBLRQARAAIAAg==".to_string();
+        let suite: Suite = p384_b64.try_into().unwrap();
+        assert_eq!(suite, Suite::P384);
+    }
+
+    #[test]
+    fn test_suite_invalid_id() {
+        let invalid_b64 = "aW52YWxpZA=="; // "invalid" in base64
+        let result: Result<Suite> = invalid_b64.try_into();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("unknown suite identifier"));
     }
 
     #[test]
@@ -268,7 +408,7 @@ mod tests {
     #[test]
     fn test_encrypted_data_from_binary() {
         let b64_encrypted_value: &str = "BMKVB9Sb897B+mn9bZR7Ad40v3+0n+gTwmrNMUDTnBOl3V3Fw/GCrAacryOs2Vz2sRFPyoQbdCo3YOp/JVRTy3J3CYxMpgdZlQpxU2lRx4YrrXWJ1j627itzLGfUf1z3pcTs06wwett5h/rM3a8I9ZPVfg==";
-        let actual: EncryptedData = EncryptedData::from_binary(b64_encrypted_value).unwrap();
+        let actual: EncryptedData = EncryptedData::from_binary(b64_encrypted_value, &Suite::P384).unwrap();
 
         let binary_encrypted_value: Vec<u8> = base64_decode(b64_encrypted_value).unwrap();
 
@@ -278,5 +418,37 @@ mod tests {
         };
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_encrypted_data_from_binary_too_short() {
+        // Create data that's too short for P384 (needs 97 bytes minimum)
+        let short_data = vec![0u8; 50];
+        let b64_short = data_encoding::BASE64.encode(&short_data);
+
+        let result = EncryptedData::from_binary(&b64_short, &Suite::P384);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("encrypted data too short"));
+        assert!(err_msg.contains("50 bytes"));
+        assert!(err_msg.contains("97"));
+    }
+
+    #[test]
+    fn test_encrypted_data_from_binary_all_suites() {
+        // Test that from_binary correctly splits data for each suite
+        let suites = [Suite::P256, Suite::P384, Suite::P521];
+        let key_sizes = [65usize, 97, 133];
+
+        for (suite, key_size) in suites.iter().zip(key_sizes.iter()) {
+            // Create test data with key_size + 10 bytes of ciphertext
+            let mut data = vec![0xABu8; *key_size];
+            data.extend(vec![0xCDu8; 10]);
+            let b64_data = data_encoding::BASE64.encode(&data);
+
+            let result = EncryptedData::from_binary(&b64_data, suite).unwrap();
+            assert_eq!(result.encapped_key.len(), *key_size, "Suite {:?} should have encapped_key of {} bytes", suite, key_size);
+            assert_eq!(result.ciphertext.len(), 10, "Suite {:?} should have ciphertext of 10 bytes", suite);
+        }
     }
 }
