@@ -25,6 +25,7 @@ use crate::enclaves::Enclaves;
 use crate::imds::CredentialCache;
 use crate::routes;
 use axum::Router;
+use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::serve::Serve;
 use std::sync::Arc;
@@ -163,7 +164,10 @@ pub fn run(
         //.route("/creds", get(routes::get_credentials))
         .with_state(state)
         .layer(RequestBodyLimitLayer::new(REQUEST_BODY_LIMIT))
-        .layer(TimeoutLayer::new(REQUEST_TIMEOUT));
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            REQUEST_TIMEOUT,
+        ));
     Ok(axum::serve(listener, app))
 }
 
