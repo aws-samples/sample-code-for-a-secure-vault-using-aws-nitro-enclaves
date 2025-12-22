@@ -99,7 +99,7 @@ EXAMPLE_DECRYPT = {
     "reason": "TESTING - API test through Swagger UI",
     "expressions": {
         "age": "date(dob).age()",
-        "ssn9_sha256": "hmac_sha256(ssn9)",
+        "ssn9_sha256": "sha256(ssn9)",
         "ssn9_base64": "base64_encode(ssn9)",
     },
 }

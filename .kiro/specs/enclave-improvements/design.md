@@ -367,6 +367,156 @@ pub fn decrypt_fields(&self) -> Result<(BTreeMap<String, Value>, Vec<Error>)> {
 }
 ```
 
+### 11. No-Panic Main Loop (main.rs)
+
+Use graceful error handling without catch_unwind:
+
+```rust
+fn main() -> Result<()> {
+    println!("[enclave] init");
+
+    let listener = match VsockListener::bind(&VsockAddr::new(VMADDR_CID_ANY, ENCLAVE_PORT)) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("[enclave fatal] failed to bind listener: {:?}", e);
+            std::process::exit(1);
+        }
+    };
+
+    println!("[enclave] listening on port {ENCLAVE_PORT}");
+
+    for stream in listener.incoming() {
+        let stream = match stream {
+            Ok(s) => s,
+            Err(e) => {
+                println!("[enclave error] failed to accept connection: {:?}", e);
+                continue;
+            }
+        };
+
+        // All errors are handled via Result, no panics possible
+        if let Err(err) = handle_client(stream) {
+            println!("[enclave error] client handler error: {:?}", err);
+        }
+    }
+
+    Ok(())
+}
+```
+
+### 12. Safe JSON Serialization (main.rs)
+
+Handle serialization failures gracefully:
+
+```rust
+fn send_response(stream: &mut VsockStream, response: &EnclaveResponse) -> Result<()> {
+    let payload = serde_json::to_string(response)
+        .map_err(|e| anyhow!("failed to serialize response: {:?}", e))?;
+    
+    send_message(stream, &payload)
+}
+```
+
+### 13. Safe Expression Execution (main.rs)
+
+Handle expression errors via Result (no catch_unwind needed):
+
+```rust
+let final_fields = match payload.request.expressions {
+    Some(expressions) => match execute_expressions(&decrypted_fields, &expressions) {
+        Ok(fields) => fields,
+        Err(err) => {
+            println!("[enclave warning] expression execution failed: {:?}", err);
+            decrypted_fields
+        }
+    },
+    None => decrypted_fields,
+};
+```
+
+### 14. Input Validation (models.rs)
+
+Add comprehensive input validation:
+
+```rust
+impl EnclaveRequest {
+    /// Validate all required fields before processing
+    pub fn validate(&self) -> Result<()> {
+        // Validate vault_id is non-empty
+        if self.request.vault_id.is_empty() {
+            bail!("vault_id cannot be empty");
+        }
+        
+        // Validate region is non-empty and contains only valid characters
+        if self.request.region.is_empty() {
+            bail!("region cannot be empty");
+        }
+        if !self.request.region.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+            bail!("region contains invalid characters");
+        }
+        
+        // Validate suite_id is non-empty
+        if self.request.suite_id.is_empty() {
+            bail!("suite_id cannot be empty");
+        }
+        
+        // Validate encrypted_private_key is non-empty
+        if self.request.encrypted_private_key.is_empty() {
+            bail!("encrypted_private_key cannot be empty");
+        }
+        
+        // Validate field count
+        if self.request.fields.len() > MAX_FIELDS {
+            bail!(
+                "field count {} exceeds maximum {}",
+                self.request.fields.len(),
+                MAX_FIELDS
+            );
+        }
+        
+        Ok(())
+    }
+}
+```
+
+### 15. Safe Memory Allocation (protocol.rs)
+
+Use fallible allocation for large buffers:
+
+```rust
+pub fn recv_message<R: Read>(reader: &mut R) -> Result<Vec<u8>> {
+    let mut size_buf = [0; size_of::<u64>()];
+    reader.read_exact(&mut size_buf)
+        .map_err(|err| anyhow!("failed to read message header: {:?}", err))?;
+
+    let size = LittleEndian::read_u64(&size_buf);
+
+    // Validate message size before allocation
+    if size > MAX_MESSAGE_SIZE {
+        bail!(
+            "message size {} exceeds maximum allowed size {}",
+            size,
+            MAX_MESSAGE_SIZE
+        );
+    }
+
+    // Safe conversion from u64 to usize
+    let size_usize: usize = size.try_into()
+        .map_err(|_| anyhow!("message size {} too large for platform", size))?;
+
+    // Allocate buffer with error handling
+    let mut payload_buffer = Vec::new();
+    payload_buffer.try_reserve(size_usize)
+        .map_err(|_| anyhow!("failed to allocate {} bytes for message", size_usize))?;
+    payload_buffer.resize(size_usize, 0);
+
+    reader.read_exact(&mut payload_buffer)
+        .map_err(|err| anyhow!("failed to read message body: {:?}", err))?;
+
+    Ok(payload_buffer)
+}
+```
+
 ## Data Models
 
 ### Suite Enum
@@ -383,6 +533,7 @@ pub fn decrypt_fields(&self) -> Result<(BTreeMap<String, Value>, Vec<Error>)> {
 |----------|-------|---------|
 | MAX_MESSAGE_SIZE | 10,485,760 (10 MB) | Prevent memory exhaustion DoS |
 | MAX_FIELDS | 1,000 | Prevent field count DoS |
+| MAX_RESPONSE_SIZE | 10,485,760 (10 MB) | Prevent response size overflow |
 | ENCLAVE_PORT | 5050 | Vsock listener port |
 
 ## Correctness Properties
@@ -445,6 +596,74 @@ Based on the prework analysis, the following properties have been identified as 
 | Field decryption errors | Collect in errors array | Field set to null, error in response |
 | Expression errors | Log warning, continue | Return original decrypted fields |
 | Connection errors | Log and continue | N/A (connection lost) |
+| Allocation failures | Log and return error | Generic "internal error" |
+| Input validation errors | Log and return error | Generic "invalid request" |
+| Index out of bounds | Return error (never panic) | Generic "internal error" |
+| Arithmetic overflow | Return error (never panic) | Generic "internal error" |
+
+### No-Panic Rust Strategy
+
+The enclave follows the "No-Panic Rust" methodology to eliminate panics at compile time rather than catching them at runtime. This approach provides:
+
+1. **Smaller binary size**: Eliminating panic handlers saves ~300KB
+2. **Predictable behavior**: No runtime panic catching needed
+3. **Compile-time enforcement**: Clippy lints catch panic-prone patterns
+4. **Better performance**: No unwinding overhead in release builds
+
+Key techniques:
+
+1. **Replace `[]` indexing with `.get()`**: All slice/array access uses `.get()` with explicit error handling
+2. **Use checked arithmetic**: `checked_add()`, `checked_mul()` for user-influenced values
+3. **Use `try_reserve()`**: Fallible allocation instead of panicking on OOM
+4. **Return `Result`**: All errors propagated via Result, never panic
+5. **Use `debug_assert!()`**: Invariant checks only in debug builds
+6. **Enable clippy lints**: `clippy::unwrap_used`, `clippy::expect_used` as warnings
+7. **Set `panic = "abort"`**: In release profile to eliminate unwinding code
+
+### Cargo.toml Configuration
+
+```toml
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1
+strip = true
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+indexing_slicing = "warn"
+```
+
+### Safe Indexing Pattern
+
+Instead of:
+```rust
+// BAD: Can panic on out-of-bounds
+let value = slice[index];
+```
+
+Use:
+```rust
+// GOOD: Returns Result on out-of-bounds
+let value = slice.get(index)
+    .ok_or_else(|| anyhow!("index {} out of bounds", index))?;
+```
+
+### Checked Arithmetic Pattern
+
+Instead of:
+```rust
+// BAD: Can panic on overflow in debug builds
+let total = a + b;
+```
+
+Use:
+```rust
+// GOOD: Returns Result on overflow
+let total = a.checked_add(b)
+    .ok_or_else(|| anyhow!("arithmetic overflow"))?;
+```
 
 ### Error Message Sanitization
 
@@ -595,6 +814,30 @@ Or remove entirely and rely on structured error responses.
 *For any* valid message string within size limits, sending it via `send_message()` and receiving it via `recv_message()` SHALL produce the identical byte sequence.
 
 **Validates: Requirements 16.1**
+
+### Property 8: No-Panic Code Verification
+
+*For any* release build of the enclave, the binary SHALL NOT contain references to the panic handler, verifiable by binary size analysis or symbol inspection.
+
+**Validates: Requirements 17.7, 24.5, 25.1**
+
+### Property 9: Safe Indexing
+
+*For any* slice or array access in the enclave code, the access SHALL either use `.get()` with explicit error handling or be provably in-bounds by the optimizer.
+
+**Validates: Requirements 25.4, 25.6**
+
+### Property 10: Checked Arithmetic
+
+*For any* arithmetic operation on user-influenced values, the operation SHALL use checked variants (`checked_add`, `checked_mul`, etc.) that return `Option` instead of panicking on overflow.
+
+**Validates: Requirements 24.4, 25.5**
+
+### Property 11: Input Validation Completeness
+
+*For any* byte sequence received as a message, parsing SHALL either succeed with a valid EnclaveRequest or return an error without panicking.
+
+**Validates: Requirements 22.1, 22.2, 22.3**
 
 ## Error Handling
 

@@ -26,17 +26,17 @@ pub fn to_uppercase(This(this): This<Arc<String>>) -> String {
 
 // Hash Functions
 
-pub fn hmac_sha256(This(this): This<Arc<String>>) -> String {
+pub fn sha256_hash(This(this): This<Arc<String>>) -> String {
     let digest = digest::digest(&digest::SHA256, this.as_bytes());
     HEXLOWER.encode(digest.as_ref())
 }
 
-pub fn hmac_sha384(This(this): This<Arc<String>>) -> String {
+pub fn sha384_hash(This(this): This<Arc<String>>) -> String {
     let digest = digest::digest(&digest::SHA384, this.as_bytes());
     HEXLOWER.encode(digest.as_ref())
 }
 
-pub fn hmac_sha512(This(this): This<Arc<String>>) -> String {
+pub fn sha512_hash(This(this): This<Arc<String>>) -> String {
     let digest = digest::digest(&digest::SHA512, this.as_bytes());
     HEXLOWER.encode(digest.as_ref())
 }
@@ -75,13 +75,26 @@ pub fn base64_decode(ftx: &FunctionContext, This(this): This<Arc<String>>) -> Re
 
 // Datetime Functions
 
+/// UTC timezone offset (0 seconds from UTC)
+/// This is a compile-time constant that is always valid.
+const UTC_OFFSET: i32 = 0;
+
 pub fn date(ftx: &FunctionContext, This(this): This<Arc<String>>) -> ResolveResult {
     match NaiveDate::parse_from_str(&this, "%Y-%m-%d") {
         Ok(date) => {
-            let tz_offset = FixedOffset::east_opt(0).unwrap();
+            // UTC offset of 0 is always valid, but we handle the theoretical None case
+            let tz_offset = match FixedOffset::east_opt(UTC_OFFSET) {
+                Some(offset) => offset,
+                None => return ftx.error("failed to create UTC timezone offset").into(),
+            };
             let datetime = date.and_time(NaiveTime::default());
-            let dt_with_tz: DateTime<FixedOffset> =
-                tz_offset.from_local_datetime(&datetime).unwrap();
+            let dt_with_tz: DateTime<FixedOffset> = match tz_offset.from_local_datetime(&datetime) {
+                chrono::LocalResult::Single(dt) => dt,
+                chrono::LocalResult::Ambiguous(dt, _) => dt,
+                chrono::LocalResult::None => {
+                    return ftx.error("failed to convert datetime to timezone").into();
+                }
+            };
             Ok(dt_with_tz.into())
         }
         Err(e) => ftx.error(e.to_string()).into(),
@@ -90,10 +103,18 @@ pub fn date(ftx: &FunctionContext, This(this): This<Arc<String>>) -> ResolveResu
 
 pub fn today_utc() -> DateTime<FixedOffset> {
     let now_utc = Utc::now();
-    let tz_offset = FixedOffset::east_opt(0).unwrap();
+    // UTC offset of 0 is always valid - use expect only in this case since
+    // it's a compile-time constant and failure would indicate a bug in chrono
+    #[allow(clippy::expect_used)]
+    let tz_offset = FixedOffset::east_opt(UTC_OFFSET).expect("UTC offset 0 should always be valid");
     let date = now_utc.date_naive();
     let datetime = date.and_time(NaiveTime::default());
-    tz_offset.from_local_datetime(&datetime).unwrap()
+    // from_local_datetime with UTC offset should always succeed
+    #[allow(clippy::expect_used)]
+    tz_offset
+        .from_local_datetime(&datetime)
+        .single()
+        .expect("UTC datetime conversion should always succeed")
 }
 
 pub fn age(This(this): This<DateTime<FixedOffset>>) -> ResolveResult {

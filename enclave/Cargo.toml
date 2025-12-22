@@ -12,6 +12,13 @@ path = "src/lib.rs"
 name = "enclave-vault"
 path = "src/main.rs"
 
+# Clippy lints for no-panic Rust hardening
+# These help catch panic-prone patterns at compile time
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+indexing_slicing = "warn"
+
 [dependencies]
 anyhow = { version = "=1.0.100", default-features = false }
 libc = { version = "=0.2.178", default-features = false }

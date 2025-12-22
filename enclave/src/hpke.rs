@@ -1,12 +1,48 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
+//! HPKE decryption module for the Nitro Enclave.
+//!
+//! This module provides HPKE (Hybrid Public Key Encryption) decryption functionality
+//! using the rustls crypto backend with aws-lc-rs. It supports decrypting individual
+//! field values that were encrypted using HPKE with the vault's public key.
+//!
+//! # Supported Cipher Suites
+//!
+//! - P-256 with HKDF-SHA256 and AES-256-GCM
+//! - P-384 with HKDF-SHA384 and AES-256-GCM
+//! - P-521 with HKDF-SHA512 and AES-256-GCM
+//!
+//! # Security
+//!
+//! The decryption uses the field name (lowercased) as Additional Authenticated Data (AAD)
+//! and the vault ID as the info parameter, binding the ciphertext to its intended context.
+
 use anyhow::{Result, anyhow};
 use rustls::crypto::hpke::{EncapsulatedSecret, Hpke, HpkePrivateKey};
 use serde_json::Value;
 
 use crate::models::EncryptedData;
 
+/// Decrypts an HPKE-encrypted field value.
+///
+/// # Arguments
+///
+/// * `suite` - The HPKE cipher suite to use for decryption
+/// * `private_key` - The HPKE private key for decryption
+/// * `info` - Context info bytes (typically the vault ID)
+/// * `field` - The field name, used as AAD (lowercased)
+/// * `encrypted_data` - The encrypted data containing encapped key and ciphertext
+///
+/// # Returns
+///
+/// Returns the decrypted value as a JSON string value, or an error if decryption fails.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - HPKE decryption fails (wrong key, corrupted data, AAD mismatch)
+/// - The decrypted bytes are not valid UTF-8
 pub fn decrypt_value(
     suite: &dyn Hpke,
     private_key: &HpkePrivateKey,
@@ -36,13 +72,11 @@ pub fn decrypt_value(
         )
     })?;
 
-    let value: Value = serde_json::to_value(string_value)
-        .map_err(|err| anyhow!("[{}] unable to convert string to value: {:?}", aad, err))?;
-
-    Ok(value)
+    Ok(Value::String(string_value))
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
     use crate::{models::Suite, utils::base64_decode};

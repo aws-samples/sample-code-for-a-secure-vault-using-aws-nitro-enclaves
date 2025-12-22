@@ -181,3 +181,107 @@ This document specifies the requirements for implementing security, reliability,
 3. THE protocol module SHALL have tests for truncated message handling
 4. THE models module SHALL have tests for all suite encapped key sizes
 5. THE models module SHALL have tests for field count validation
+
+### Requirement 17: No-Panic Rust Implementation
+
+**User Story:** As a system operator, I want the enclave to be built using no-panic Rust patterns, so that panics are eliminated at compile time rather than caught at runtime.
+
+#### Acceptance Criteria
+
+1. THE main() function SHALL NOT use .expect() for the VsockListener bind operation
+2. WHEN the VsockListener fails to bind, THE Server SHALL log the error and exit gracefully with an error code
+3. THE Enclave crate SHALL enable clippy lints `clippy::unwrap_used` and `clippy::expect_used` as warnings
+4. THE Enclave code SHALL replace all array indexing `[]` with `.get()` and explicit error handling
+5. THE Enclave code SHALL use checked arithmetic (`checked_add`, `checked_mul`, etc.) where overflow is possible
+6. THE Server MAY use std::panic::catch_unwind() as defense-in-depth but SHALL NOT rely on it as the primary panic prevention strategy
+7. THE Enclave build SHALL use `panic = "abort"` in release profile to minimize code size
+
+### Requirement 18: Robust JSON Serialization
+
+**User Story:** As a security engineer, I want JSON serialization to never panic, so that malformed response data cannot crash the enclave.
+
+#### Acceptance Criteria
+
+1. WHEN serializing EnclaveResponse, THE Server SHALL handle serialization errors gracefully
+2. IF serde_json::to_string() fails, THEN THE Server SHALL log the error and send a minimal error response
+3. THE Server SHALL NOT panic on JSON serialization failures
+
+### Requirement 19: Safe Integer Conversions
+
+**User Story:** As a security engineer, I want integer conversions to be checked, so that overflow cannot cause crashes or undefined behavior.
+
+#### Acceptance Criteria
+
+1. WHEN converting message length to u64, THE Protocol SHALL use checked conversion with try_into()
+2. IF the conversion fails, THEN THE Protocol SHALL return an error instead of panicking
+3. WHEN converting u64 size to usize for allocation, THE Protocol SHALL validate the conversion is safe
+
+### Requirement 20: Expression Execution Safety
+
+**User Story:** As a security engineer, I want CEL expression execution to be safe, so that malicious expressions cannot crash the enclave.
+
+#### Acceptance Criteria
+
+1. WHEN executing CEL expressions, THE Expressions module SHALL handle all errors via Result
+2. IF a CEL expression returns an error, THEN THE Server SHALL return the original decrypted fields
+3. THE Server SHALL log a warning when expression execution fails
+4. THE CEL execution SHALL NOT use any panicking APIs internally
+
+### Requirement 21: KMS FFI Safety
+
+**User Story:** As a security engineer, I want KMS FFI calls to be robust, so that FFI errors cannot crash the enclave.
+
+#### Acceptance Criteria
+
+1. THE aws_ne module SHALL handle all FFI error codes without panicking
+2. WHEN FFI functions return null pointers, THE aws_ne module SHALL return appropriate errors
+3. THE aws_ne module SHALL clean up all allocated resources on both success and error paths
+4. THE aws_ne module SHALL NOT use unwrap() or expect() on FFI results
+
+### Requirement 22: Input Validation Completeness
+
+**User Story:** As a security engineer, I want all inputs to be validated before processing, so that malformed inputs cannot cause crashes.
+
+#### Acceptance Criteria
+
+1. WHEN parsing EnclaveRequest, THE Parser SHALL validate all required fields are present
+2. WHEN parsing EncryptedData from hex, THE Parser SHALL validate the '#' separator exists
+3. WHEN parsing base64 data, THE Parser SHALL handle invalid base64 gracefully
+4. THE Parser SHALL validate that vault_id is non-empty
+5. THE Parser SHALL validate that region is non-empty and contains only valid characters
+
+### Requirement 23: Memory Allocation Safety
+
+**User Story:** As a security engineer, I want memory allocations to be bounded, so that allocation failures cannot crash the enclave.
+
+#### Acceptance Criteria
+
+1. WHEN allocating buffers for received messages, THE Protocol SHALL use try_reserve() or handle allocation failures
+2. WHEN creating BTreeMap entries, THE Models module SHALL limit the total size of decrypted data
+3. THE Server SHALL define a maximum total response size constant
+4. IF total response size would exceed the maximum, THEN THE Server SHALL return an error
+
+### Requirement 24: Compile-Time Panic Prevention
+
+**User Story:** As a developer, I want panic-prone code patterns to be caught at compile time, so that panics cannot be introduced accidentally.
+
+#### Acceptance Criteria
+
+1. THE Enclave Cargo.toml SHALL configure clippy to warn on `unwrap_used` and `expect_used`
+2. THE CI pipeline SHALL fail if any `unwrap()` or `expect()` calls are added to non-test code
+3. THE Enclave code SHALL use `.get()` with explicit error handling instead of `[]` indexing
+4. THE Enclave code SHALL use checked arithmetic for any user-influenced calculations
+5. THE Enclave release profile SHALL set `panic = "abort"` to eliminate unwinding overhead
+
+### Requirement 25: Panic Source Elimination
+
+**User Story:** As a security engineer, I want all potential panic sources to be eliminated, so that the enclave binary does not include panic handling code.
+
+#### Acceptance Criteria
+
+1. THE Enclave code SHALL NOT use `panic!()`, `unreachable!()`, or `unimplemented!()` macros
+2. THE Enclave code SHALL NOT use `assert!()` in non-test code (use `debug_assert!()` or return errors)
+3. THE Enclave code SHALL NOT use `unwrap()` or `expect()` on Option or Result types
+4. THE Enclave code SHALL NOT use slice indexing `[]` that could panic on out-of-bounds
+5. THE Enclave code SHALL NOT use integer division without checking for zero divisor
+6. WHEN the optimizer cannot prove bounds are safe, THE code SHALL use `.get()` with explicit error handling
