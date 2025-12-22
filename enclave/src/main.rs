@@ -30,7 +30,7 @@ fn send_error(mut stream: VsockStream, err: Error) -> Result<()> {
 
     let payload: String = serde_json::json!(response).to_string();
 
-    if let Err(err) = send_message(&mut stream, payload) {
+    if let Err(err) = send_message(&mut stream, &payload) {
         println!("[enclave error] failed to send error: {err:?}");
     }
 
@@ -71,7 +71,7 @@ fn handle_client(mut stream: VsockStream) -> Result<()> {
     println!("[enclave] sending response to parent");
 
     if let Err(err) =
-        send_message(&mut stream, payload).map_err(|err| anyhow!("Failed to send message: {err:?}"))
+        send_message(&mut stream, &payload).map_err(|err| anyhow!("Failed to send message: {err:?}"))
     {
         return send_error(stream, err);
     }
@@ -90,10 +90,16 @@ fn main() -> Result<()> {
     println!("[enclave] listening on port {ENCLAVE_PORT}");
 
     for stream in listener.incoming() {
-        let stream = stream.unwrap();
+        let stream = match stream {
+            Ok(s) => s,
+            Err(e) => {
+                println!("[enclave error] failed to accept connection: {:?}", e);
+                continue;
+            }
+        };
 
         if let Err(err) = handle_client(stream) {
-            println!("[enclave error] {err:?}");
+            println!("[enclave error] {:?}", err);
         }
     }
 

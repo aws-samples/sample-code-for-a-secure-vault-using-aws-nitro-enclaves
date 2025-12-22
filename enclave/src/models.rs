@@ -451,4 +451,142 @@ mod tests {
             assert_eq!(result.ciphertext.len(), 10, "Suite {:?} should have ciphertext of 10 bytes", suite);
         }
     }
+
+    // **Feature: enclave-improvements, Property 2: Binary parsing with suite**
+    // **Validates: Requirements 1.2**
+    //
+    // *For any* valid base64-encoded encrypted data and any Suite variant,
+    // `EncryptedData::from_binary(data, suite)` SHALL split the data at exactly
+    // `suite.encapped_key_size()` bytes, with the first portion as `encapped_key`
+    // and the remainder as `ciphertext`.
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        #[test]
+        fn prop_from_binary_splits_at_suite_encapped_key_size(
+            suite_idx in 0usize..3,
+            // Generate encapped_key bytes (exact size will be determined by suite)
+            key_byte in any::<u8>(),
+            // Generate ciphertext of varying length (1 to 100 bytes)
+            ciphertext_len in 1usize..100,
+            ciphertext_byte in any::<u8>()
+        ) {
+            let suites = [Suite::P256, Suite::P384, Suite::P521];
+            let suite = suites[suite_idx];
+            let key_size = suite.encapped_key_size();
+
+            // Create test data: encapped_key (key_size bytes) + ciphertext (ciphertext_len bytes)
+            let mut data = vec![key_byte; key_size];
+            let ciphertext_data = vec![ciphertext_byte; ciphertext_len];
+            data.extend(&ciphertext_data);
+
+            // Encode as base64
+            let b64_data = data_encoding::BASE64.encode(&data);
+
+            // Parse using from_binary
+            let result = EncryptedData::from_binary(&b64_data, &suite).unwrap();
+
+            // Verify the split is correct
+            prop_assert_eq!(
+                result.encapped_key.len(),
+                key_size,
+                "encapped_key should be exactly {} bytes for {:?}",
+                key_size,
+                suite
+            );
+            prop_assert_eq!(
+                result.ciphertext.len(),
+                ciphertext_len,
+                "ciphertext should be exactly {} bytes",
+                ciphertext_len
+            );
+
+            // Verify the content is preserved correctly
+            prop_assert_eq!(
+                result.encapped_key,
+                vec![key_byte; key_size],
+                "encapped_key content should match input"
+            );
+            prop_assert_eq!(
+                result.ciphertext,
+                ciphertext_data,
+                "ciphertext content should match input"
+            );
+        }
+
+        #[test]
+        fn prop_from_binary_rejects_data_shorter_than_encapped_key_size(
+            suite_idx in 0usize..3,
+            // Generate data that's shorter than the minimum required
+            short_factor in 0.0f64..1.0
+        ) {
+            let suites = [Suite::P256, Suite::P384, Suite::P521];
+            let suite = suites[suite_idx];
+            let key_size = suite.encapped_key_size();
+
+            // Create data shorter than key_size (0 to key_size-1 bytes)
+            let short_len = (key_size as f64 * short_factor) as usize;
+            let short_data = vec![0u8; short_len];
+            let b64_short = data_encoding::BASE64.encode(&short_data);
+
+            // Attempt to parse - should fail
+            let result = EncryptedData::from_binary(&b64_short, &suite);
+
+            prop_assert!(
+                result.is_err(),
+                "from_binary should reject data of {} bytes for {:?} (needs {} bytes)",
+                short_len,
+                suite,
+                key_size
+            );
+
+            // Verify error message contains useful information
+            let err_msg = result.unwrap_err().to_string();
+            prop_assert!(
+                err_msg.contains("encrypted data too short"),
+                "Error should mention 'encrypted data too short', got: {}",
+                err_msg
+            );
+        }
+
+        #[test]
+        fn prop_from_binary_preserves_exact_byte_content(
+            suite_idx in 0usize..3,
+            // Generate random bytes for encapped_key and ciphertext
+            encapped_key_seed in any::<[u8; 32]>(),
+            ciphertext in prop::collection::vec(any::<u8>(), 1..50)
+        ) {
+            let suites = [Suite::P256, Suite::P384, Suite::P521];
+            let suite = suites[suite_idx];
+            let key_size = suite.encapped_key_size();
+
+            // Generate encapped_key bytes by repeating seed to fill key_size
+            let encapped_key: Vec<u8> = encapped_key_seed
+                .iter()
+                .cycle()
+                .take(key_size)
+                .copied()
+                .collect();
+
+            // Combine into full data
+            let mut data = encapped_key.clone();
+            data.extend(&ciphertext);
+
+            // Encode and parse
+            let b64_data = data_encoding::BASE64.encode(&data);
+            let result = EncryptedData::from_binary(&b64_data, &suite).unwrap();
+
+            // Verify exact byte content is preserved
+            prop_assert_eq!(
+                result.encapped_key,
+                encapped_key,
+                "encapped_key bytes should be preserved exactly"
+            );
+            prop_assert_eq!(
+                result.ciphertext,
+                ciphertext,
+                "ciphertext bytes should be preserved exactly"
+            );
+        }
+    }
 }
