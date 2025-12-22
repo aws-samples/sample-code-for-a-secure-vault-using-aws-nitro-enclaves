@@ -1,61 +1,41 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
-use std::process::Command;
-
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, anyhow};
 use aws_lc_rs::encoding::AsBigEndian;
 use aws_lc_rs::signature::{EcdsaKeyPair, EcdsaSigningAlgorithm};
 use rustls::crypto::hpke::HpkePrivateKey;
 
-use crate::constants::PLAINTEXT_PREFIX;
+use crate::aws_ne;
 use crate::models::{Credential, EnclaveRequest};
 use crate::utils::base64_decode;
 
-fn call_kms_decrypt(credential: &Credential, ciphertext: &str, region: &str) -> Result<String> {
-    // https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/bin/kmstool-enclave-cli/README.md
+fn call_kms_decrypt(credential: &Credential, ciphertext: &str, region: &str) -> Result<Vec<u8>> {
+    // Base64 decode the ciphertext
+    let ciphertext_bytes = base64_decode(ciphertext)?;
 
-    let output = Command::new("/app/kmstool_enclave_cli")
-        .arg("decrypt")
-        .args(["--region", region])
-        .args(["--proxy-port", "8000"])
-        .args(["--aws-access-key-id", credential.access_key_id.as_str()])
-        .args([
-            "--aws-secret-access-key",
-            credential.secret_access_key.as_str(),
-        ])
-        .args(["--aws-session-token", credential.session_token.as_str()])
-        .args(["--ciphertext", ciphertext])
-        .output()
-        .map_err(|err| anyhow!("Unable to call KMS decrypt: {err:?}"))?;
-
-    if !output.status.success() {
-        bail!(
-            "Unable to decrypt key ({:?}): {}",
-            output.status.code(),
-            String::from_utf8_lossy(output.stderr.as_slice())
-        );
-    }
-
-    Ok(String::from_utf8_lossy(output.stdout.as_slice()).to_string())
+    // Call FFI wrapper directly instead of spawning subprocess
+    aws_ne::kms_decrypt(
+        region.as_bytes(),
+        credential.access_key_id.as_bytes(),
+        credential.secret_access_key.as_bytes(),
+        credential.session_token.as_bytes(),
+        &ciphertext_bytes,
+    )
+    .map_err(|e| anyhow!("KMS decrypt failed: {}", e))
 }
 
 pub fn get_secret_key(
     alg: &'static EcdsaSigningAlgorithm,
     payload: &EnclaveRequest,
 ) -> Result<HpkePrivateKey> {
-    let kms_result = call_kms_decrypt(
+    // Call KMS decrypt via FFI wrapper - returns plaintext bytes directly
+    let plaintext_sk = call_kms_decrypt(
         &payload.credential,
         &payload.request.encrypted_private_key, // base64 encoded
         &payload.request.region,
     )
     .map_err(|err| anyhow!("failed to call KMS: {err:?}"))?;
-
-    // Strip prefix and newline added at https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/bin/kmstool-enclave-cli/main.c#L514
-    let b64_sk = kms_result.trim_start_matches(PLAINTEXT_PREFIX).trim_end();
-
-    // Base64 decode the secret key
-    let plaintext_sk = base64_decode(b64_sk)?;
 
     // Decode the DER PKCS#8 secret key
     let sk = EcdsaKeyPair::from_private_key_der(alg, &plaintext_sk)

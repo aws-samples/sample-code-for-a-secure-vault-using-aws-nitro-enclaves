@@ -43,7 +43,9 @@ async fn main() -> Result<(), Error> {
         let enclaves_mut = enclaves.clone();
         tokio::spawn(async move {
             loop {
-                let _ = enclaves_mut.refresh(options.skip_run_enclaves).await;
+                if let Err(e) = enclaves_mut.refresh(options.skip_run_enclaves).await {
+                    tracing::error!("[parent] failed to refresh enclaves: {:?}", e);
+                }
                 tracing::debug!(
                     "[parent] refreshed enclaves, sleeping for {:#?}",
                     constants::REFRESH_ENCLAVES_INTERVAL
@@ -55,7 +57,7 @@ async fn main() -> Result<(), Error> {
         tracing::warn!("[parent] skipping refreshing enclaves");
     }
 
-    let application = Application::build(options, enclaves).await.unwrap();
+    let application = Application::build(options, enclaves).await?;
 
     application.run_until_stopped().await
 }

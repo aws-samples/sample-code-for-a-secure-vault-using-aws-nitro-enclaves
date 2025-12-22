@@ -2,6 +2,7 @@
 name = "parent-vault"
 version = "0.1.0"
 authors = ["Justin Plock <jplock@amazon.com>"]
+description = "Parent instance application for AWS Nitro Enclaves Vault"
 edition = "2024"
 publish = false
 default-run = "parent-vault"
@@ -20,13 +21,22 @@ aws-credential-types = { version = "=1.2.11", default-features = false }
 aws-smithy-runtime-api = { version = "=1.9.3", default-features = false, features = ["client"] }
 axum = { version = "=0.8.7", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
 byteorder = { version = "=1.5.0", default-features = false }
-clap = { version = "=4.5.53", default-features = false, features = ["std", "derive", "env"] }
+clap = { version = "=4.5.53", default-features = false, features = ["std", "derive", "env", "help"] }
 fastrand = { version = "=2.3.0", default-features = false }
 serde = { version = "=1.0.228", default-features = false, features = ["derive"] }
 serde_json = { version = "=1.0.145", default-features = false }
 thiserror = { version = "=2.0.17", default-features = false }
-tokio = { version = "=1.48.0", default-features = false, features = ["rt-multi-thread", "process", "tracing"] }
+tokio = { version = "=1.48.0", default-features = false, features = ["rt-multi-thread", "process", "tracing", "time", "signal"] }
+tower-http = { version = "=0.6.6", default-features = false, features = ["limit", "timeout"] }
+tower_governor = { version = "=0.8.0", default-features = false, features = ["axum"] }
+validator = { version = "=0.20.0", default-features = false, features = ["derive"] }
 tracing = { version = "=0.1.43", default-features = false, features = ["log"] }
 tracing-subscriber = { version = "=0.3.22", default-features = false, features = ["ansi", "env-filter", "fmt", "json"] }
 vsock = { version = "=0.5.2", default-features = false }
 zeroize = { version = "=1.8.2", default-features = false, features = ["zeroize_derive"] }
+
+[dev-dependencies]
+tokio-test = { version = "=0.4.4", default-features = false }
+axum-test = { version = "=18.4.1", default-features = false }
+wiremock = { version = "=0.6.5", default-features = false }
+claim = { version = "=0.5.0", default-features = false }

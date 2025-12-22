@@ -261,6 +261,9 @@ Resources:
                 Type=simple
                 ExecStart=/home/ec2-user/parent-vault --host 127.0.0.1 --role "${pInstanceRoleName}"
                 Restart=always
+                Environment="RUST_LOG=debug"
+                Environment="RUST_BACKTRACE=1"
+                Environment="RUST_LOG_STYLE=never"
 
                 [Install]
                 WantedBy=multi-user.target

@@ -9,6 +9,7 @@
 FROM public.ecr.aws/docker/library/rust:alpine AS kmstool
 
 ARG TARGETPLATFORM
+ARG SOURCE_DATE_EPOCH
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
 
@@ -142,7 +143,7 @@ RUN cd aws-nitro-enclaves-nsm-api \
     && mv target/$TARGETPLATFORM/release/nsm.h /usr/include/
 
 # AWS Nitro Enclaves SDK
-RUN git clone --depth 1 -b v0.4.2 "https://github.com/aws/aws-nitro-enclaves-sdk-c"
+RUN git clone --depth 1 -b v0.4.3 "https://github.com/aws/aws-nitro-enclaves-sdk-c"
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
@@ -152,14 +153,13 @@ RUN cmake \
 RUN cmake --build aws-nitro-enclaves-sdk-c/build --parallel $(nproc) --target install
 
 ####################################################################################################
-## Chef image
+## Chef image - based on kmstool to have all libraries available
 ####################################################################################################
-FROM public.ecr.aws/docker/library/rust:alpine AS chef
+FROM kmstool AS chef
 ARG TARGETPLATFORM
+ARG SOURCE_DATE_EPOCH
 
 WORKDIR /app
-RUN apk add --no-cache build-base
-RUN rustup target add $TARGETPLATFORM
 RUN cargo install cargo-chef --locked
 
 ####################################################################################################
@@ -176,7 +176,6 @@ FROM chef AS builder
 ARG TARGETPLATFORM
 
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo install cargo-chef --locked
 RUN cargo chef cook --release --target $TARGETPLATFORM --recipe-path recipe.json
 COPY . .
 RUN cargo build --target $TARGETPLATFORM --release --color never
@@ -186,6 +185,7 @@ RUN cargo build --target $TARGETPLATFORM --release --color never
 ####################################################################################################
 FROM public.ecr.aws/docker/library/alpine:latest AS runtime
 ARG TARGETPLATFORM
+ARG SOURCE_DATE_EPOCH
 
 RUN apk add --no-cache ca-certificates libgcc
 RUN addgroup -S vault && adduser -S vault -G vault
@@ -194,15 +194,12 @@ WORKDIR /app
 
 # Copy our build
 COPY --from=builder /app/target/${TARGETPLATFORM}/release/enclave-vault /app/enclave-vault
-# Copy kmstool_enclave_cli
-COPY --from=kmstool /usr/bin/kmstool_enclave_cli /app/kmstool_enclave_cli
-COPY --from=kmstool /usr/lib64/libnsm.so /usr/lib64/libnsm.so
 
-ENV LD_LIBRARY_PATH="/usr/lib64":"/lib"
+# Copy NSM library for attestation (only dynamic library needed - others are statically linked)
+COPY --from=kmstool /usr/lib/libnsm.so /usr/lib/libnsm.so
 
-# RUN ls -lha /app
-# RUN ls -lha /lib
-RUN chmod +x /app/kmstool_enclave_cli
+ENV LD_LIBRARY_PATH="/usr/lib"
+
 RUN chmod +x /app/enclave-vault
 
 CMD ["/app/enclave-vault"]
