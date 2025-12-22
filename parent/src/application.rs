@@ -30,8 +30,6 @@ use axum::serve::Serve;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
-use tower_governor::GovernorLayer;
-use tower_governor::governor::GovernorConfigBuilder;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::timeout::TimeoutLayer;
 
@@ -142,7 +140,6 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 ///
 /// # Middleware
 ///
-/// - Rate limiting: 100 requests/second per IP
 /// - Timeout: 30 seconds
 /// - Body limit: 1 MB
 #[tracing::instrument(skip(listener, enclaves))]
@@ -158,13 +155,6 @@ pub fn run(
         credentials,
     });
 
-    // Rate limiting: 100 requests per second per IP
-    let governor_config = GovernorConfigBuilder::default()
-        .per_second(100)
-        .burst_size(100)
-        .finish()
-        .expect("valid governor config");
-
     let app = Router::new()
         .route("/health", get(routes::health))
         .route("/enclaves", get(routes::get_enclaves))
@@ -173,8 +163,7 @@ pub fn run(
         //.route("/creds", get(routes::get_credentials))
         .with_state(state)
         .layer(RequestBodyLimitLayer::new(REQUEST_BODY_LIMIT))
-        .layer(TimeoutLayer::new(REQUEST_TIMEOUT))
-        .layer(GovernorLayer::new(Arc::new(governor_config)));
+        .layer(TimeoutLayer::new(REQUEST_TIMEOUT));
     Ok(axum::serve(listener, app))
 }
 
