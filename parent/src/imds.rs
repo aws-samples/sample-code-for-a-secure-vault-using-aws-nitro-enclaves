@@ -120,17 +120,24 @@ impl CredentialCache {
     /// Uses double-check locking to prevent redundant refreshes when
     /// multiple threads detect expiry simultaneously.
     async fn refresh(&self) -> Result<Credential, AppError> {
+        tracing::debug!("[parent] refreshing credentials from IMDS");
         let mut cache = self.cached.write().await;
 
         // Double-check after acquiring write lock (another thread may have refreshed)
         if let Some(ref cached) = *cache
             && self.is_valid(cached)
         {
+            tracing::debug!("[parent] credentials already refreshed by another thread");
             return Ok(cached.credential.clone());
         }
 
         // Fetch fresh credentials from IMDS
-        let (credential, expires_at) = load_credentials_with_expiry(self.profile.clone()).await?;
+        let (credential, expires_at) = load_credentials_with_expiry(self.profile.clone())
+            .await
+            .map_err(|e| {
+                tracing::error!("[parent] failed to load credentials from IMDS: {:?}", e);
+                e
+            })?;
 
         tracing::debug!(
             "[parent] refreshed IMDS credentials, expires_at: {:?}",

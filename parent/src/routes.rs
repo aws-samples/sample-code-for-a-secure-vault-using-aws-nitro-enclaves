@@ -115,12 +115,22 @@ pub async fn decrypt(
     Json(request): Json<ParentRequest>,
 ) -> Result<Json<ParentResponse>, AppError> {
     // 1. Validate incoming request against size limits and format rules
-    request
-        .validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+    tracing::debug!(
+        "[parent] validating decrypt request for vault_id: {}",
+        request.vault_id
+    );
+    request.validate().map_err(|e| {
+        tracing::error!("[parent] validation failed: {}", e);
+        AppError::ValidationError(e.to_string())
+    })?;
 
     // 2. Fetch (or use cached) IAM credentials from IMDS
-    let credential = state.credentials.get_credentials().await?;
+    tracing::debug!("[parent] fetching credentials from cache");
+    let credential = state.credentials.get_credentials().await.map_err(|e| {
+        tracing::error!("[parent] failed to get credentials: {:?}", e);
+        e
+    })?;
+    tracing::debug!("[parent] credentials retrieved successfully");
 
     let request = EnclaveRequest {
         credential,
@@ -149,7 +159,14 @@ pub async fn decrypt(
     let response: EnclaveResponse =
         tokio::task::spawn_blocking(move || enclaves_ref.decrypt(cid, port, request))
             .await
-            .map_err(|_| AppError::InternalServerError)??;
+            .map_err(|e| {
+                tracing::error!("[parent] spawn_blocking task failed: {:?}", e);
+                AppError::InternalServerError
+            })?
+            .map_err(|e| {
+                tracing::error!("[parent] enclave decrypt failed: {:?}", e);
+                e
+            })?;
 
     tracing::debug!("[parent] received response from CID: {:?}", cid);
 
