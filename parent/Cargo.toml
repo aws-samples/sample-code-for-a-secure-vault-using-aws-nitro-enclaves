@@ -2,6 +2,7 @@
 name = "parent-vault"
 version = "0.1.0"
 authors = ["Justin Plock <jplock@amazon.com>"]
+description = "Parent instance application for AWS Nitro Enclaves Vault"
 edition = "2024"
 publish = false
 default-run = "parent-vault"
@@ -20,7 +21,7 @@ aws-credential-types = { version = "=1.2.11", default-features = false }
 aws-smithy-runtime-api = { version = "=1.9.3", default-features = false, features = ["client"] }
 axum = { version = "=0.8.7", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
 byteorder = { version = "=1.5.0", default-features = false }
-clap = { version = "=4.5.53", default-features = false, features = ["std", "derive", "env"] }
+clap = { version = "=4.5.53", default-features = false, features = ["std", "derive", "env", "help"] }
 fastrand = { version = "=2.3.0", default-features = false }
 serde = { version = "=1.0.228", default-features = false, features = ["derive"] }
 serde_json = { version = "=1.0.145", default-features = false }

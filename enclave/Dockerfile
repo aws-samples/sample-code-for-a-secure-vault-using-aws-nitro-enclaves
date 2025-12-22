@@ -9,6 +9,7 @@
 FROM public.ecr.aws/docker/library/rust:alpine AS kmstool
 
 ARG TARGETPLATFORM
+ARG SOURCE_DATE_EPOCH
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
 
@@ -142,7 +143,7 @@ RUN cd aws-nitro-enclaves-nsm-api \
     && mv target/$TARGETPLATFORM/release/nsm.h /usr/include/
 
 # AWS Nitro Enclaves SDK
-RUN git clone --depth 1 -b v0.4.2 "https://github.com/aws/aws-nitro-enclaves-sdk-c"
+RUN git clone --depth 1 -b v0.4.3 "https://github.com/aws/aws-nitro-enclaves-sdk-c"
 RUN cmake \
     -DCMAKE_PREFIX_PATH=/usr \
     -DCMAKE_INSTALL_PREFIX=/usr \
@@ -156,6 +157,7 @@ RUN cmake --build aws-nitro-enclaves-sdk-c/build --parallel $(nproc) --target in
 ####################################################################################################
 FROM kmstool AS chef
 ARG TARGETPLATFORM
+ARG SOURCE_DATE_EPOCH
 
 WORKDIR /app
 RUN cargo install cargo-chef --locked
@@ -183,6 +185,7 @@ RUN cargo build --target $TARGETPLATFORM --release --color never
 ####################################################################################################
 FROM public.ecr.aws/docker/library/alpine:latest AS runtime
 ARG TARGETPLATFORM
+ARG SOURCE_DATE_EPOCH
 
 RUN apk add --no-cache ca-certificates libgcc
 RUN addgroup -S vault && adduser -S vault -G vault
