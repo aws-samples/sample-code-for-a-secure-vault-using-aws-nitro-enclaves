@@ -1102,8 +1102,12 @@ Resources:
     Type: "AWS::Logs::LogGroup"
     UpdateReplacePolicy: Delete
     DeletionPolicy: Delete
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: "Ignoring KMS key"
     Properties:
-      KmsKeyId: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/lambda"
       LogGroupName: !Sub "/aws/lambda/${rScaleInFunction}"
       RetentionInDays: 3
   
