@@ -676,7 +676,6 @@ Resources:
           CpuManufacturers:
             - amazon-web-services
           ExcludedInstanceTypes:
-          AcceleratorManufacturers:
             # https://docs.aws.amazon.com/enclaves/latest/user/nitro-enclave.html#nitro-enclave-reqs
             - "m5.large"
             - "m5a.large"
