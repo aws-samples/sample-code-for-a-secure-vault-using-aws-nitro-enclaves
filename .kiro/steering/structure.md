@@ -1,58 +1,74 @@
+---
+inclusion: always
+---
+
 # Project Structure
 
-```
-├── api/                    # Python Lambda API
-│   ├── src/app/           # Application code
-│   │   ├── routers/       # API route handlers
-│   │   ├── resources/     # AWS resource clients (DynamoDB, KMS)
-│   │   ├── models.py      # Pydantic models and vault schema
-│   │   ├── vault.py       # Core vault operations
-│   │   ├── encryptors.py  # HPKE encryption logic
-│   │   └── lambda_handler.py  # Lambda entry point
-│   ├── dependencies/      # Lambda layer dependencies
-│   └── template.yml       # SAM template
-│
-├── enclave/               # Rust Nitro Enclave application
-│   └── src/
-│       ├── main.rs        # Enclave entry point (vsock listener)
-│       ├── hpke.rs        # HPKE decryption
-│       ├── kms.rs         # KMS integration
-│       ├── expressions.rs # CEL expression execution
-│       ├── models.rs      # Request/response types
-│       └── protocol.rs    # Vsock message protocol
-│
-├── parent/                # Rust parent instance application
-│   └── src/
-│       ├── main.rs        # Parent entry point
-│       ├── application.rs # Axum app setup
-│       ├── routes.rs      # HTTP route handlers
-│       ├── enclaves.rs    # Enclave management
-│       ├── imds.rs        # EC2 instance metadata
-│       └── protocol.rs    # Vsock communication
-│
-├── canary/                # Python canary Lambda for monitoring
-│   └── src/app/
-│
-├── docs/                  # MkDocs documentation
-│
-├── scripts/               # Development scripts
-│
-├── Cargo.toml             # Rust workspace root
-├── deploy.sh              # Main deployment script
-├── uninstall.sh           # Cleanup script
-│
-# CloudFormation Templates
-├── vpc_template.yml       # VPC infrastructure
-├── kms_template.yml       # KMS key setup
-├── ci_template.yml        # CI/CD pipeline
-├── vault_template.yml     # Vault EC2 infrastructure
-└── deploy_template.yml    # Deployment orchestration
-```
+## Directory Layout
 
-## Key Patterns
+| Path | Language | Purpose |
+|------|----------|---------|
+| `api/` | Python | Lambda API - encryption, DynamoDB, REST endpoints |
+| `enclave/` | Rust | Nitro Enclave - KMS decrypt, HPKE, CEL execution |
+| `parent/` | Rust | EC2 parent - Axum HTTP server, vsock proxy |
+| `canary/` | Python | Health monitoring Lambda |
+| `docs/` | Markdown | MkDocs documentation |
+| `scripts/` | Shell | Development utilities |
 
-- **Workspace**: Rust workspace with `enclave` and `parent` members
-- **Lambda Layers**: Python dependencies in `api/dependencies/`
-- **SAM**: Each Lambda component has its own `template.yml` and `samconfig.toml`
-- **Makefiles**: Each component has a Makefile for common operations
-- **License Headers**: All source files include MIT-0 license header
+## Component File Mapping
+
+### API (`api/src/app/`)
+- `lambda_handler.py` - Lambda entry point
+- `routers/` - API route handlers (add new endpoints here)
+- `resources/` - AWS clients (DynamoDB, KMS)
+- `models.py` - Pydantic models, vault schema
+- `vault.py` - Core vault operations
+- `encryptors.py` - HPKE encryption (sync with `enclave/src/hpke.rs`)
+
+### Enclave (`enclave/src/`)
+- `main.rs` - Vsock listener entry point
+- `hpke.rs` - HPKE decryption (sync with `api/src/app/encryptors.py`)
+- `kms.rs` - KMS integration
+- `expressions.rs` - CEL expression execution
+- `functions.rs` - CEL custom functions
+- `models.rs` - Request/response types (sync with `api/src/app/models.py`)
+- `protocol.rs` - Vsock message protocol (sync with `parent/src/protocol.rs`)
+
+### Parent (`parent/src/`)
+- `main.rs` - Application entry point
+- `application.rs` - Axum app setup
+- `routes.rs` - HTTP route handlers
+- `enclaves.rs` - Enclave lifecycle management
+- `imds.rs` - EC2 instance metadata client
+- `protocol.rs` - Vsock communication (sync with `enclave/src/protocol.rs`)
+
+## Infrastructure Templates
+
+| Template | Purpose |
+|----------|---------|
+| `vpc_template.yml` | VPC, subnets, security groups |
+| `kms_template.yml` | KMS key with enclave attestation policy |
+| `vault_template.yml` | EC2 instance, ASG, ALB |
+| `ci_template.yml` | CodePipeline, CodeBuild |
+| `deploy_template.yml` | Deployment orchestration |
+| `api/template.yml` | Lambda functions, API Gateway, DynamoDB |
+| `canary/template.yml` | Canary Lambda |
+
+## Key Conventions
+
+- Rust workspace root: `Cargo.toml` with `enclave` and `parent` members
+- Each component has a `Makefile` for build/deploy/clean operations
+- Python Lambda layers: dependencies in `*/dependencies/requirements.txt`
+- SAM config: each Lambda has `template.yml` + `samconfig.toml`
+- All source files require MIT-0 license header
+
+## Cross-Component Sync Points
+
+When modifying these areas, update both sides:
+
+| Change Type | Files to Update |
+|-------------|-----------------|
+| Encryption/Decryption | `api/.../encryptors.py` ↔ `enclave/src/hpke.rs` |
+| Data Models | `api/.../models.py` ↔ `enclave/src/models.rs` |
+| Vsock Protocol | `parent/src/protocol.rs` ↔ `enclave/src/protocol.rs` |
+| CEL Functions | `enclave/src/expressions.rs` + `enclave/src/functions.rs` |
