@@ -25,6 +25,7 @@ use crate::enclaves::Enclaves;
 use crate::imds::CredentialCache;
 use crate::routes;
 use axum::Router;
+use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::serve::Serve;
 use std::sync::Arc;
@@ -102,6 +103,8 @@ impl Application {
 /// Waits for a shutdown signal (Ctrl+C or SIGTERM).
 async fn shutdown_signal() {
     let ctrl_c = async {
+        // Signal handler installation failure is unrecoverable - expect is appropriate here
+        #[allow(clippy::expect_used)]
         tokio::signal::ctrl_c()
             .await
             .expect("failed to install Ctrl+C handler");
@@ -109,6 +112,8 @@ async fn shutdown_signal() {
 
     #[cfg(unix)]
     let terminate = async {
+        // Signal handler installation failure is unrecoverable - expect is appropriate here
+        #[allow(clippy::expect_used)]
         tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
             .expect("failed to install signal handler")
             .recv()
@@ -163,11 +168,15 @@ pub fn run(
         //.route("/creds", get(routes::get_credentials))
         .with_state(state)
         .layer(RequestBodyLimitLayer::new(REQUEST_BODY_LIMIT))
-        .layer(TimeoutLayer::new(REQUEST_TIMEOUT));
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            REQUEST_TIMEOUT,
+        ));
     Ok(axum::serve(listener, app))
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

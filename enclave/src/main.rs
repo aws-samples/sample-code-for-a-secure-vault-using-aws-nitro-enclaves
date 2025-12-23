@@ -28,9 +28,10 @@ fn send_error(mut stream: VsockStream, err: Error) -> Result<()> {
 
     let response = EnclaveResponse::error(err);
 
-    let payload: String = serde_json::json!(response).to_string();
+    let payload: String = serde_json::to_string(&response)
+        .map_err(|err| anyhow!("failed to serialize error response: {err:?}"))?;
 
-    if let Err(err) = send_message(&mut stream, payload) {
+    if let Err(err) = send_message(&mut stream, &payload) {
         println!("[enclave error] failed to send error: {err:?}");
     }
 
@@ -59,19 +60,23 @@ fn handle_client(mut stream: VsockStream) -> Result<()> {
     let final_fields = match payload.request.expressions {
         Some(expressions) => match execute_expressions(&decrypted_fields, &expressions) {
             Ok(fields) => fields,
-            Err(_) => decrypted_fields,
+            Err(err) => {
+                println!("[enclave warning] expression execution failed: {:?}", err);
+                decrypted_fields
+            }
         },
         None => decrypted_fields,
     };
 
     let response = EnclaveResponse::new(final_fields, Some(errors));
 
-    let payload: String = serde_json::json!(response).to_string();
+    let payload: String = serde_json::to_string(&response)
+        .map_err(|err| anyhow!("failed to serialize response: {err:?}"))?;
 
     println!("[enclave] sending response to parent");
 
-    if let Err(err) =
-        send_message(&mut stream, payload).map_err(|err| anyhow!("Failed to send message: {err:?}"))
+    if let Err(err) = send_message(&mut stream, &payload)
+        .map_err(|err| anyhow!("Failed to send message: {err:?}"))
     {
         return send_error(stream, err);
     }
@@ -84,16 +89,30 @@ fn handle_client(mut stream: VsockStream) -> Result<()> {
 fn main() -> Result<()> {
     println!("[enclave] init");
 
-    let listener = VsockListener::bind(&VsockAddr::new(VMADDR_CID_ANY, ENCLAVE_PORT))
-        .expect("bind and listen failed");
+    let listener = match VsockListener::bind(&VsockAddr::new(VMADDR_CID_ANY, ENCLAVE_PORT)) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!(
+                "[enclave fatal] failed to bind listener on port {}: {:?}",
+                ENCLAVE_PORT, e
+            );
+            std::process::exit(1);
+        }
+    };
 
     println!("[enclave] listening on port {ENCLAVE_PORT}");
 
     for stream in listener.incoming() {
-        let stream = stream.unwrap();
+        let stream = match stream {
+            Ok(s) => s,
+            Err(e) => {
+                println!("[enclave error] failed to accept connection: {:?}", e);
+                continue;
+            }
+        };
 
         if let Err(err) = handle_client(stream) {
-            println!("[enclave error] {err:?}");
+            println!("[enclave error] {:?}", err);
         }
     }
 

@@ -12,11 +12,17 @@ path = "src/lib.rs"
 name = "enclave-vault"
 path = "src/main.rs"
 
+# Clippy lints for no-panic Rust hardening
+# These help catch panic-prone patterns at compile time
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+indexing_slicing = "warn"
+
 [dependencies]
 anyhow = { version = "=1.0.100", default-features = false }
 libc = { version = "=0.2.178", default-features = false }
-aws-lc-rs = { version = "=1.15.1", default-features = false }
-byteorder = { version = "=1.5.0", default-features = false }
+aws-lc-rs = { version = "=1.15.2", default-features = false }
 cel-interpreter = { version = "=0.10.0", default-features = false, features = ["json", "chrono"] }
 chrono = { version = "=0.4.42", default-features = false, features = ["now"] }
 data-encoding = { version = "=2.9.0", default-features = false, features = ["alloc"] }
@@ -28,3 +34,6 @@ zeroize = { version = "=1.8.2", default-features = false, features = ["zeroize_d
 
 [target.'cfg(target_env = "musl")'.dependencies]
 mimalloc = { version = "=0.1.48", default-features = false, features = ["secure"] }
+
+[dev-dependencies]
+proptest = { version = "1.4", default-features = false, features = ["std"] }

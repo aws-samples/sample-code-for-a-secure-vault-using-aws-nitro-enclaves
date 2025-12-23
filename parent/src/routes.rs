@@ -145,7 +145,8 @@ pub async fn decrypt(
 
     // Random selection provides simple load balancing across enclaves
     let index = fastrand::usize(..enclaves.len());
-    let cid: u32 = enclaves[index]
+    let enclave = enclaves.get(index).ok_or(AppError::EnclaveNotFound)?;
+    let cid: u32 = enclave
         .enclave_cid
         .try_into()
         .map_err(|_| AppError::InternalServerError)?;
@@ -180,6 +181,7 @@ pub async fn decrypt(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
     use axum::body::to_bytes;

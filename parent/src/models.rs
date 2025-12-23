@@ -231,20 +231,28 @@ fn validate_aws_region(region: &str) -> Result<(), validator::ValidationError> {
     }
 
     // First part: exactly 2 lowercase letters (e.g., "us", "eu", "ap")
-    let first = parts[0];
+    let first = parts
+        .first()
+        .ok_or_else(|| validator::ValidationError::new("invalid_aws_region"))?;
     if first.len() != 2 || !first.chars().all(|c| c.is_ascii_lowercase()) {
         return Err(validator::ValidationError::new("invalid_aws_region"));
     }
 
     // Middle parts: lowercase letters (e.g., "east", "west", "southeast")
-    for part in &parts[1..parts.len() - 1] {
+    // Safe slice: we know parts.len() >= 3, so indices 1..parts.len()-1 are valid
+    let middle_parts = parts
+        .get(1..parts.len().saturating_sub(1))
+        .ok_or_else(|| validator::ValidationError::new("invalid_aws_region"))?;
+    for part in middle_parts {
         if part.is_empty() || !part.chars().all(|c| c.is_ascii_lowercase()) {
             return Err(validator::ValidationError::new("invalid_aws_region"));
         }
     }
 
     // Last part: digits (e.g., "1", "2")
-    let last = parts[parts.len() - 1];
+    let last = parts
+        .last()
+        .ok_or_else(|| validator::ValidationError::new("invalid_aws_region"))?;
     if last.is_empty() || !last.chars().all(|c| c.is_ascii_digit()) {
         return Err(validator::ValidationError::new("invalid_aws_region"));
     }
@@ -309,6 +317,7 @@ pub struct EnclaveResponse {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -155,11 +155,15 @@ impl KmsResources {
 /// * `Ok(Vec<u8>)` - The decrypted plaintext
 /// * `Err(Error)` - An error if any step fails
 ///
-/// # Safety
+/// # Safety Invariants
 ///
-/// This function contains unsafe code to call C FFI functions. All resources
-/// are properly cleaned up on both success and error paths using secure
-/// cleanup functions that zero memory before freeing.
+/// This function maintains the following safety invariants:
+/// - All FFI calls check return values for null pointers before use
+/// - cleanup() is called on ALL error paths to prevent resource leaks
+/// - No unwrap() or expect() is used on FFI results
+/// - Resources are cleaned up in reverse order of allocation
+/// - Secure cleanup functions zero memory before freeing (credentials, plaintext)
+/// - The function never panics - all errors are returned via Result
 #[cfg(target_env = "musl")]
 pub fn kms_decrypt(
     aws_region: &[u8],
@@ -296,7 +300,7 @@ pub fn kms_decrypt(
 }
 
 /// Stub implementation for non-musl platforms (compilation only).
-/// This function will panic if called - it's only meant to allow compilation
+/// This function returns an error - it's only meant to allow compilation
 /// on development machines. The actual implementation requires the AWS Nitro
 /// Enclaves SDK which is only available when building for musl target inside Docker.
 #[cfg(not(target_env = "musl"))]
@@ -307,7 +311,9 @@ pub fn kms_decrypt(
     _aws_session_token: &[u8],
     _ciphertext: &[u8],
 ) -> Result<Vec<u8>, Error> {
-    panic!("kms_decrypt is only available on Linux with AWS Nitro Enclaves SDK")
+    // Return an error instead of panicking - this code path should never be reached
+    // in production as the enclave is always built for musl target
+    Err(Error::SdkInitError)
 }
 
 // =============================================================================
@@ -315,6 +321,7 @@ pub fn kms_decrypt(
 // =============================================================================
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
 
