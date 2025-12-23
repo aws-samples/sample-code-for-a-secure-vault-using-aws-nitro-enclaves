@@ -73,3 +73,13 @@ pub const MAX_FIELDS_COUNT: usize = 100;
 
 /// Maximum number of expressions allowed in the `expressions` map of [`crate::models::ParentRequest`].
 pub const MAX_EXPRESSIONS_COUNT: usize = 100;
+
+/// Maximum request body size (1 MB).
+///
+/// HTTP requests with bodies larger than this limit will receive a 413 Payload Too Large response.
+pub const REQUEST_BODY_LIMIT: usize = 1024 * 1024;
+
+/// Request timeout duration (30 seconds).
+///
+/// HTTP requests that take longer than this duration will receive a 408 Request Timeout response.
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);

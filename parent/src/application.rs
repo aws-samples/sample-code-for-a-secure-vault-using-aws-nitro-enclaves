@@ -21,6 +21,7 @@
 //! - `SIGTERM` (Unix only)
 
 use crate::configuration::ParentOptions;
+use crate::constants::{REQUEST_BODY_LIMIT, REQUEST_TIMEOUT};
 use crate::enclaves::Enclaves;
 use crate::imds::CredentialCache;
 use crate::routes;
@@ -29,7 +30,6 @@ use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::serve::Serve;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::net::TcpListener;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::timeout::TimeoutLayer;
@@ -133,15 +133,54 @@ async fn shutdown_signal() {
     }
 }
 
-/// Maximum request body size (1 MB).
-const REQUEST_BODY_LIMIT: usize = 1024 * 1024;
-
-/// Request timeout duration (30 seconds).
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
-
-/// Creates and configures the Axum router.
+/// Creates the Axum router with routes and middleware.
 ///
-/// Sets up routes, shared state, and middleware layers.
+/// This function builds the router with all endpoints and middleware layers.
+/// It can be used directly for testing or wrapped with `axum::serve` for production.
+///
+/// # Arguments
+///
+/// * `options` - Server configuration options
+/// * `enclaves` - Shared enclave manager
+///
+/// # Middleware
+///
+/// - Timeout: 30 seconds
+/// - Body limit: 1 MB
+///
+/// # Example
+///
+/// ```ignore
+/// let options = ParentOptions::default();
+/// let enclaves = Arc::new(Enclaves::new());
+/// let router = create_router(options, enclaves);
+/// // Use with axum-test's TestServer or axum::serve
+/// ```
+pub fn create_router(options: ParentOptions, enclaves: Arc<Enclaves>) -> Router {
+    let credentials = Arc::new(CredentialCache::new(options.role.clone()));
+    let state = Arc::new(AppState {
+        options,
+        enclaves,
+        credentials,
+    });
+
+    Router::new()
+        .route("/health", get(routes::health))
+        .route("/enclaves", get(routes::get_enclaves))
+        //.route("/enclaves", post(routes::run_enclave))
+        .route("/decrypt", post(routes::decrypt))
+        //.route("/creds", get(routes::get_credentials))
+        .with_state(state)
+        .layer(RequestBodyLimitLayer::new(REQUEST_BODY_LIMIT))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            REQUEST_TIMEOUT,
+        ))
+}
+
+/// Creates and configures the Axum server.
+///
+/// Sets up routes, shared state, and middleware layers, then binds to the listener.
 ///
 /// # Middleware
 ///
@@ -153,25 +192,7 @@ pub fn run(
     options: ParentOptions,
     enclaves: Arc<Enclaves>,
 ) -> Result<Serve<TcpListener, Router, Router>, std::io::Error> {
-    let credentials = Arc::new(CredentialCache::new(options.role.clone()));
-    let state = Arc::new(AppState {
-        options,
-        enclaves,
-        credentials,
-    });
-
-    let app = Router::new()
-        .route("/health", get(routes::health))
-        .route("/enclaves", get(routes::get_enclaves))
-        //.route("/enclaves", post(routes::run_enclave))
-        .route("/decrypt", post(routes::decrypt))
-        //.route("/creds", get(routes::get_credentials))
-        .with_state(state)
-        .layer(RequestBodyLimitLayer::new(REQUEST_BODY_LIMIT))
-        .layer(TimeoutLayer::with_status_code(
-            StatusCode::REQUEST_TIMEOUT,
-            REQUEST_TIMEOUT,
-        ));
+    let app = create_router(options, enclaves);
     Ok(axum::serve(listener, app))
 }
 
@@ -179,6 +200,8 @@ pub fn run(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use crate::constants::{REQUEST_BODY_LIMIT, REQUEST_TIMEOUT};
+    use std::time::Duration;
 
     #[test]
     fn test_request_body_limit_is_1mb() {

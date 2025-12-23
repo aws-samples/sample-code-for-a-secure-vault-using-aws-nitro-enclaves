@@ -36,4 +36,4 @@ zeroize = { version = "=1.8.2", default-features = false, features = ["zeroize_d
 mimalloc = { version = "=0.1.48", default-features = false, features = ["secure"] }
 
 [dev-dependencies]
-proptest = { version = "1.4", default-features = false, features = ["std"] }
+proptest = { version = "=1.9.0", default-features = false, features = ["std"] }

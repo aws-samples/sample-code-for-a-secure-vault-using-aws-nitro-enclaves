@@ -28,7 +28,7 @@ use serde_json::json;
 /// | `InternalServerError` | 500 Internal Server Error |
 /// | `ValidationError` | 400 Bad Request |
 /// | `ConfigError` | 500 Internal Server Error |
-#[derive(thiserror::Error, Debug, PartialEq)]
+#[derive(thiserror::Error, Debug, PartialEq, Clone)]
 pub enum AppError {
     /// Error returned when a subprocess (e.g., `nitro-cli`) fails.
     ///
@@ -83,8 +83,22 @@ impl IntoResponse for AppError {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Internal Server Error".to_string(),
             ),
-            Self::ValidationError(msg) => (StatusCode::BAD_REQUEST, msg),
-            Self::ConfigError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
+            Self::ValidationError(msg) => {
+                let message = if msg.is_empty() {
+                    "Validation error".to_string()
+                } else {
+                    msg
+                };
+                (StatusCode::BAD_REQUEST, message)
+            }
+            Self::ConfigError(msg) => {
+                let message = if msg.is_empty() {
+                    "Configuration error".to_string()
+                } else {
+                    msg
+                };
+                (StatusCode::INTERNAL_SERVER_ERROR, message)
+            }
         };
 
         let body = Json(json!({"code": status.as_u16(), "message": message}));
@@ -130,6 +144,7 @@ impl From<CredentialsError> for AppError {
 mod tests {
     use super::*;
     use axum::body::to_bytes;
+    use proptest::prelude::*;
 
     /// Helper to extract status code from an AppError response.
     fn get_status(error: AppError) -> StatusCode {
@@ -141,6 +156,67 @@ mod tests {
         let response = error.into_response();
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         serde_json::from_slice(&body).unwrap()
+    }
+
+    /// Strategy to generate arbitrary AppError variants.
+    fn arb_app_error() -> impl Strategy<Value = AppError> {
+        prop_oneof![
+            (any::<Option<i32>>(), any::<String>())
+                .prop_map(|(code, msg)| AppError::RunError(code, msg)),
+            Just(AppError::ExecError),
+            Just(AppError::EnclaveNotFound),
+            Just(AppError::DecryptError),
+            Just(AppError::InternalServerError),
+            any::<String>().prop_map(AppError::ValidationError),
+            any::<String>().prop_map(AppError::ConfigError),
+        ]
+    }
+
+    proptest! {
+        /// **Property 1: Error Response Structure Consistency**
+        /// **Validates: Requirements 8.1, 8.2**
+        ///
+        /// *For any* AppError variant, when converted to an HTTP response,
+        /// the response body SHALL contain both a `code` field (matching the
+        /// HTTP status code) and a `message` field (containing a non-empty string).
+        #[test]
+        fn prop_error_response_structure_consistency(error in arb_app_error()) {
+            // Get the expected status code before consuming the error
+            let expected_status = match &error {
+                AppError::RunError(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
+                AppError::ExecError => StatusCode::INTERNAL_SERVER_ERROR,
+                AppError::EnclaveNotFound => StatusCode::NOT_FOUND,
+                AppError::DecryptError => StatusCode::INTERNAL_SERVER_ERROR,
+                AppError::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
+                AppError::ValidationError(_) => StatusCode::BAD_REQUEST,
+                AppError::ConfigError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+
+            // Convert error to response
+            let response = error.into_response();
+            let status = response.status();
+
+            // Verify status code matches expected
+            prop_assert_eq!(status, expected_status);
+
+            // Extract body synchronously using tokio runtime
+            let body_bytes = tokio_test::block_on(async {
+                to_bytes(response.into_body(), usize::MAX).await.unwrap()
+            });
+
+            // Parse body as JSON
+            let body: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+
+            // Verify `code` field exists and matches HTTP status code
+            prop_assert!(body.get("code").is_some(), "Response body must contain 'code' field");
+            let code = body["code"].as_u64().unwrap();
+            prop_assert_eq!(code, expected_status.as_u16() as u64);
+
+            // Verify `message` field exists and is a non-empty string
+            prop_assert!(body.get("message").is_some(), "Response body must contain 'message' field");
+            let message = body["message"].as_str().unwrap();
+            prop_assert!(!message.is_empty(), "Message field must be non-empty");
+        }
     }
 
     #[test]
@@ -196,6 +272,16 @@ mod tests {
         let body = get_body_json(err).await;
         assert_eq!(body["code"], 400);
         assert_eq!(body["message"], "field is required");
+    }
+
+    /// Test that ValidationError with empty message falls back to default message.
+    /// **Validates: Requirements 8.3**
+    #[tokio::test]
+    async fn test_validation_error_empty_message_fallback() {
+        let err = AppError::ValidationError(String::new());
+        let body = get_body_json(err).await;
+        assert_eq!(body["code"], 400);
+        assert_eq!(body["message"], "Validation error");
     }
 
     #[tokio::test]
