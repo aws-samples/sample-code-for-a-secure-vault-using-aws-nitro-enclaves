@@ -30,6 +30,48 @@ Parameters:
   pInstanceRoleName:
     Type: String
     Description: Instance Role Name
+  pPermissionsBoundaryArn:
+    Type: String
+    Description: IAM Permissions Boundary Policy ARN
+  pScaleOutConnectionThreshold:
+    Type: Number
+    Default: 1000
+    MinValue: 1
+    Description: Active flow count threshold for scale-out
+  pScaleOutThroughputThreshold:
+    Type: Number
+    Default: 104857600
+    MinValue: 1
+    Description: Processed bytes threshold for scale-out (100MB in bytes)
+  pScaleOutNewFlowThreshold:
+    Type: Number
+    Default: 500
+    MinValue: 1
+    Description: New flow count threshold for scale-out
+  pScaleOutCpuThreshold:
+    Type: Number
+    Default: 70
+    MinValue: 1
+    MaxValue: 100
+    Description: CPU percentage threshold for scale-out
+  pScaleInConnectionThreshold:
+    Type: Number
+    Default: 200
+    MinValue: 0
+    Description: Active flow count threshold for scale-in
+  pScaleInCpuThreshold:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    MaxValue: 100
+    Description: CPU percentage threshold for scale-in
+  pAlarmSnsTopicArn:
+    Type: String
+    Default: ""
+    Description: Optional SNS topic ARN for alarm notifications
+
+Conditions:
+  cHasSnsTopicArn: !Not [!Equals [!Ref pAlarmSnsTopicArn, ""]]
 
 Mappings:
   RegionMap:
@@ -634,19 +676,92 @@ Resources:
           CpuManufacturers:
             - amazon-web-services
           ExcludedInstanceTypes:
+            # https://docs.aws.amazon.com/enclaves/latest/user/nitro-enclave.html#nitro-enclave-reqs
+            - "m5.large"
+            - "m5a.large"
+            - "m5ad.large"
+            - "m5d.large"
+            - "m5dn.large"
+            - "m5n.large"
+            - "m5zn.large"
+            - "m6a.large"
+            - "m6g.medium"
+            - "m6gd.medium"
+            - "m6i.large"
+            - "m6id.large"
+            - "m6idn.large"
+            - "m6in.large"
+            - "m7a.medium"
+            - "m7a.large"
+            - "m7g.medium"
+            - "m7gd.medium"
+            - "m7i.large"
+            - "m8a.medium"
+            - "m8g.medium"
+            - "m8gb.medium"
+            - "m8gd.medium"
+            - "m8gn.medium"
+            - "m8i.large"
+            - "c5.large"
+            - "c5a.large"
+            - "c5ad.large"
+            - "c5d.large"
+            - "c5n.large"
+            - "c6a.large"
+            - "c6g.medium"
+            - "c6gd.medium"
+            - "c6gn.medium"
+            - "c6i.large"
+            - "c6id.large"
+            - "c6in.large"
+            - "c7a.medium"
+            - "c7a.large"
+            - "c7g.medium"
+            - "c7gd.medium"
+            - "c7i.large"
+            - "c8a.medium"
+            - "c8g.medium"
+            - "c8gb.medium"
+            - "c8gd.medium"
+            - "c8gn.medium"
+            - "c8i.large"
+            - "r5.large"
+            - "r5a.large"
+            - "r5ad.large"
+            - "r5b.large"
+            - "r5d.large"
+            - "r5dn.large"
+            - "r5n.large"
+            - "r6a.large"
+            - "r6g.medium"
+            - "r6gd.medium"
+            - "r6i.large"
+            - "r6id.large"
+            - "r6idn.large"
+            - "r6in.large"
+            - "r7a.medium"
+            - "r7a.large"
+            - "r7g.medium"
+            - "r7gd.medium"
+            - "r7i.large"
+            - "r7iz.large"
+            - "r8a.medium"
+            - "r8g.medium"
+            - "r8gb.medium"
+            - "r8gd.medium"
+            - "r8gn.medium"
+            - "r8i.large"
+            - "x2gd.medium"
+            - "x8g.medium"
+            - "z1d.large"
+            - "i3en.large"
+            - "i4i.large"
+            - "i7i.large"
+            - "i7ie.large"
             - "a1*"
-            - "c6g*"
-            - "c7*"
-            - "m6g*"
-            - "m7*"
-            - "r6g*"
-            - "r7*"
-            - "r8*"
             - "u*"
             - "vt*"
-            - "g*"
             - "hpc*"
-            - "t*"
           InstanceGenerations:
             - current
           MemoryMiB:
@@ -745,7 +860,7 @@ Resources:
           - ScheduledActions
     Properties:
       AvailabilityZoneDistribution:
-        CapacityDistributionStrategy: balanced-only
+        CapacityDistributionStrategy: balanced-best-effort
       AvailabilityZoneImpairmentPolicy:
         ImpairedZoneHealthCheckBehavior: IgnoreUnhealthy
         ZonalShiftEnabled: true
@@ -779,6 +894,327 @@ Resources:
         - OldestInstance
         - OldestLaunchTemplate
       VPCZoneIdentifier: !Ref pSubnetIds
+
+  rScaleOutPolicy:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    Properties:
+      AutoScalingGroupName: !Ref rAutoScalingGroup
+      PolicyType: SimpleScaling
+      AdjustmentType: ChangeInCapacity
+      ScalingAdjustment: 1
+      Cooldown: 300
+
+  rHealthyHostScaleOutPolicy:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    Properties:
+      AutoScalingGroupName: !Ref rAutoScalingGroup
+      PolicyType: SimpleScaling
+      AdjustmentType: ChangeInCapacity
+      ScalingAdjustment: 1
+      Cooldown: 300
+
+  rScaleInPolicy:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    Properties:
+      AutoScalingGroupName: !Ref rAutoScalingGroup
+      PolicyType: SimpleScaling
+      AdjustmentType: ChangeInCapacity
+      ScalingAdjustment: -1
+      Cooldown: 600
+
+  rHighConnectionsAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: Scale out when active TCP connections exceed threshold
+      Namespace: AWS/NetworkELB
+      MetricName: ActiveFlowCount
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt rLoadBalancer.LoadBalancerFullName
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: !Ref pScaleOutConnectionThreshold
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+        - !Ref rScaleOutPolicy
+      OKActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rHighThroughputAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: Scale out when processed bytes exceed threshold
+      Namespace: AWS/NetworkELB
+      MetricName: ProcessedBytes
+      Dimensions:
+        - Name: TargetGroup
+          Value: !GetAtt rTargetGroup.TargetGroupFullName
+        - Name: LoadBalancer
+          Value: !GetAtt rLoadBalancer.LoadBalancerFullName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: !Ref pScaleOutThroughputThreshold
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+        - !Ref rScaleOutPolicy
+      OKActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rHighNewFlowsAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: Scale out when new connection rate exceeds threshold
+      Namespace: AWS/NetworkELB
+      MetricName: NewFlowCount
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt rLoadBalancer.LoadBalancerFullName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: !Ref pScaleOutNewFlowThreshold
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+        - !Ref rScaleOutPolicy
+      OKActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rHighCpuAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: Scale out when CPU utilization exceeds threshold
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref rAutoScalingGroup
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: !Ref pScaleOutCpuThreshold
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+        - !Ref rScaleOutPolicy
+      OKActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rLowHealthyHostAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: Scale out when healthy host count falls below threshold
+      Namespace: AWS/NetworkELB
+      MetricName: HealthyHostCount
+      Dimensions:
+        - Name: TargetGroup
+          Value: !GetAtt rTargetGroup.TargetGroupFullName
+        - Name: LoadBalancer
+          Value: !GetAtt rLoadBalancer.LoadBalancerFullName
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+        - !Ref rHealthyHostScaleOutPolicy
+      OKActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rLowConnectionsAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: Low connections alarm for scale-in composite (no direct action)
+      Namespace: AWS/NetworkELB
+      MetricName: ActiveFlowCount
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt rLoadBalancer.LoadBalancerFullName
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 10
+      Threshold: !Ref pScaleInConnectionThreshold
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rLowCpuAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: Low CPU alarm for scale-in composite (no direct action)
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref rAutoScalingGroup
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 10
+      Threshold: !Ref pScaleInCpuThreshold
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rScaleInCompositeAlarm:
+    Type: "AWS::CloudWatch::CompositeAlarm"
+    Properties:
+      AlarmDescription: Scale in when both connections and CPU are low
+      AlarmRule: !Sub "ALARM(${rLowConnectionsAlarm}) AND ALARM(${rLowCpuAlarm})"
+      AlarmActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+        - !GetAtt rScaleInFunction.Arn
+      OKActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rScaleInFunctionLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: "Ignoring KMS key"
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${rScaleInFunction}"
+      RetentionInDays: 3
+  
+  rScaleInFunctionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: !Sub "lambda.${AWS::URLSuffix}"
+            Action: "sts:AssumeRole"
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref "AWS::AccountId"
+      Description: !Sub "DO NOT DELETE - Used by Lambda. Created by CloudFormation ${AWS::StackId}"
+      Path: "/vault/"
+      PermissionsBoundary: !Ref pPermissionsBoundaryArn
+      Policies:
+        - PolicyName: ExecuteScalingPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: "autoscaling:ExecutePolicy"
+                Resource: !Sub "arn:${AWS::Partition}:autoscaling:${AWS::Region}:${AWS::AccountId}:autoScalingGroup:*:autoScalingGroupName/${rAutoScalingGroup}"
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rScaleInFunctionRole
+
+  rCloudWatchPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: CloudWatchLogs
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource: !GetAtt rScaleInFunctionLogGroup.Arn
+      Roles:
+        - !Ref rScaleInFunctionRole
+  
+  rScaleInFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Description: Executes scale-in policy when triggered by composite alarm
+      Runtime: python3.14
+      Handler: index.handler
+      Role: !GetAtt rScaleInFunctionRole.Arn
+      Timeout: 30
+      Environment:
+        Variables:
+          ASG_NAME: !Ref rAutoScalingGroup
+          POLICY_NAME: !Ref rScaleInPolicy
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          client = boto3.client('autoscaling')
+
+          def handler(event, context):
+              asg_name = os.environ['ASG_NAME']
+              policy_arn = os.environ['POLICY_NAME']
+              # Extract policy name from ARN
+              policy_name = policy_arn.split(':policyName/')[1] if ':policyName/' in policy_arn else policy_arn
+              
+              logger.info(f"Executing scale-in policy {policy_name} for ASG {asg_name}")
+              
+              response = client.execute_policy(
+                  AutoScalingGroupName=asg_name,
+                  PolicyName=policy_name,
+                  HonorCooldown=True
+              )
+              
+              logger.info(f"Scale-in policy executed successfully")
+              return {'statusCode': 200, 'body': 'Scale-in policy executed'}
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rScaleInFunction
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rScaleInFunctionPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !Ref rScaleInFunction
+      Action: "lambda:InvokeFunction"
+      Principal: lambda.alarms.cloudwatch.amazonaws.com
+      SourceAccount: !Ref "AWS::AccountId"
+      SourceArn: !GetAtt rScaleInCompositeAlarm.Arn
 
   rLoadBalancer:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"

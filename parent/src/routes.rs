@@ -99,10 +99,11 @@ pub async fn get_credentials(
 /// # Request Flow
 ///
 /// 1. Validate the incoming [`ParentRequest`]
-/// 2. Fetch IAM credentials from the cache (or IMDS if expired)
-/// 3. Select a random available enclave for load balancing
-/// 4. Send the request to the enclave over vsock
-/// 5. Return the decrypted response
+/// 2. Check for available enclaves
+/// 3. Fetch IAM credentials from the cache (or IMDS if expired)
+/// 4. Select a random available enclave for load balancing
+/// 5. Send the request to the enclave over vsock
+/// 6. Return the decrypted response
 ///
 /// # Errors
 ///
@@ -124,7 +125,13 @@ pub async fn decrypt(
         AppError::ValidationError(e.to_string())
     })?;
 
-    // 2. Fetch (or use cached) IAM credentials from IMDS
+    // 2. Get available enclaves early to fail fast if none are available
+    let enclaves: Vec<EnclaveDescribeInfo> = state.enclaves.get_enclaves().await;
+    if enclaves.is_empty() {
+        return Err(AppError::EnclaveNotFound);
+    }
+
+    // 3. Fetch (or use cached) IAM credentials from IMDS
     tracing::debug!("[parent] fetching credentials from cache");
     let credential = state.credentials.get_credentials().await.map_err(|e| {
         tracing::error!("[parent] failed to get credentials: {:?}", e);
@@ -137,13 +144,7 @@ pub async fn decrypt(
         request,
     };
 
-    // 3. Get available enclaves and select one randomly for load balancing
-    let enclaves: Vec<EnclaveDescribeInfo> = state.enclaves.get_enclaves().await;
-    if enclaves.is_empty() {
-        return Err(AppError::EnclaveNotFound);
-    }
-
-    // Random selection provides simple load balancing across enclaves
+    // 4. Select a random enclave for load balancing
     let index = fastrand::usize(..enclaves.len());
     let enclave = enclaves.get(index).ok_or(AppError::EnclaveNotFound)?;
     let cid: u32 = enclave
@@ -153,7 +154,7 @@ pub async fn decrypt(
 
     tracing::debug!("[parent] sending decrypt request to CID: {:?}", cid);
 
-    // 4. Send request to enclave via vsock (blocking operation)
+    // 5. Send request to enclave via vsock (blocking operation)
     // spawn_blocking is used because vsock I/O is synchronous
     let enclaves_ref = state.enclaves.clone();
     let port = constants::ENCLAVE_PORT;
@@ -171,7 +172,7 @@ pub async fn decrypt(
 
     tracing::debug!("[parent] received response from CID: {:?}", cid);
 
-    // 5. Transform enclave response to parent response format
+    // 6. Transform enclave response to parent response format
     let response = ParentResponse {
         fields: response.fields.unwrap_or_default(),
         errors: response.errors,
@@ -186,6 +187,9 @@ mod tests {
     use super::*;
     use axum::body::to_bytes;
     use axum::http::StatusCode;
+
+    // Unit tests for route handlers (testing handler functions directly)
+    // Integration tests using TestServer are in tests/http_integration.rs
 
     #[tokio::test]
     async fn test_health_returns_ok() {
@@ -207,10 +211,4 @@ mod tests {
         assert_eq!(json.as_object().unwrap().len(), 1);
         assert!(json.get("status").is_some());
     }
-
-    // Note: Testing get_enclaves, run_enclave, get_credentials, and decrypt
-    // requires setting up AppState with mocked dependencies. These are better
-    // suited for integration tests in tests/integration/.
-    //
-    // The tests above verify the health endpoint which has no dependencies.
 }

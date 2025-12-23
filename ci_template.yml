@@ -520,6 +520,7 @@ Resources:
               - "cloudformation:SignalResource"
               - "cloudwatch:DeleteAlarms"
               - "cloudwatch:DescribeAlarms"
+              - "cloudwatch:PutCompositeAlarm"
               - "cloudwatch:PutMetricAlarm"
               - "cloudwatch:PutMetricData"
               - "cloudwatch:TagResource"
@@ -832,6 +833,7 @@ Resources:
                       "pHostedZoneId": "${pHostedZoneId}",
                       "pDomainName": "${pDomainName}",
                       "pInstanceRoleName": "${rInstanceRole}",
+                      "pPermissionsBoundaryArn": "${rPermissionsBoundary}",
                       "pArtifactBucketName": {
                         "Fn::GetArtifactAtt": [
                           "VaultBuildOutput",
@@ -968,6 +970,15 @@ Resources:
               RunOrder: 2
           OnFailure:
             Result: ROLLBACK
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rCodePipeline
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
 
   rCodeBuildRole:
     Type: "AWS::IAM::Role"
