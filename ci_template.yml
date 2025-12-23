@@ -970,6 +970,15 @@ Resources:
               RunOrder: 2
           OnFailure:
             Result: ROLLBACK
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rCodePipeline
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
 
   rCodeBuildRole:
     Type: "AWS::IAM::Role"
