@@ -30,6 +30,9 @@ Parameters:
   pInstanceRoleName:
     Type: String
     Description: Instance Role Name
+  pPermissionsBoundaryArn:
+    Type: String
+    Description: IAM Permissions Boundary Policy ARN
   pScaleOutConnectionThreshold:
     Type: Number
     Default: 1000
@@ -1057,6 +1060,8 @@ Resources:
               StringEquals:
                 "aws:SourceAccount": !Ref "AWS::AccountId"
       Description: !Sub "DO NOT DELETE - Used by Lambda. Created by CloudFormation ${AWS::StackId}"
+      Path: "/vault/"
+      PermissionsBoundary: !Ref pPermissionsBoundaryArn
       Policies:
         - PolicyName: ExecuteScalingPolicy
           PolicyDocument:

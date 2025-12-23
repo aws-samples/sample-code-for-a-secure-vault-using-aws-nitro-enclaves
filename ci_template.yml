@@ -520,8 +520,8 @@ Resources:
               - "cloudformation:SignalResource"
               - "cloudwatch:DeleteAlarms"
               - "cloudwatch:DescribeAlarms"
-              - "cloudwatch:PutMetricAlarm"
               - "cloudwatch:PutCompositeAlarm"
+              - "cloudwatch:PutMetricAlarm"
               - "cloudwatch:PutMetricData"
               - "cloudwatch:TagResource"
               - "cloudwatch:UntagResource"
@@ -833,6 +833,7 @@ Resources:
                       "pHostedZoneId": "${pHostedZoneId}",
                       "pDomainName": "${pDomainName}",
                       "pInstanceRoleName": "${rInstanceRole}",
+                      "pPermissionsBoundaryArn": "${rPermissionsBoundary}",
                       "pArtifactBucketName": {
                         "Fn::GetArtifactAtt": [
                           "VaultBuildOutput",
