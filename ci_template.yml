@@ -521,6 +521,7 @@ Resources:
               - "cloudwatch:DeleteAlarms"
               - "cloudwatch:DescribeAlarms"
               - "cloudwatch:PutMetricAlarm"
+              - "cloudwatch:PutCompositeAlarm"
               - "cloudwatch:PutMetricData"
               - "cloudwatch:TagResource"
               - "cloudwatch:UntagResource"

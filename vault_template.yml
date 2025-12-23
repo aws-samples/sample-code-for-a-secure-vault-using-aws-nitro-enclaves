@@ -868,12 +868,6 @@ Resources:
       OKActions:
         - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
       Tags:
-        - Key: "aws-cloudformation:stack-name"
-          Value: !Ref "AWS::StackName"
-        - Key: "aws-cloudformation:stack-id"
-          Value: !Ref "AWS::StackId"
-        - Key: "aws-cloudformation:logical-id"
-          Value: rHighConnectionsAlarm
         - Key: AppManagerCFNStackKey
           Value: !Ref "AWS::StackName"
 
@@ -901,12 +895,6 @@ Resources:
       OKActions:
         - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
       Tags:
-        - Key: "aws-cloudformation:stack-name"
-          Value: !Ref "AWS::StackName"
-        - Key: "aws-cloudformation:stack-id"
-          Value: !Ref "AWS::StackId"
-        - Key: "aws-cloudformation:logical-id"
-          Value: rHighThroughputAlarm
         - Key: AppManagerCFNStackKey
           Value: !Ref "AWS::StackName"
 
@@ -932,12 +920,6 @@ Resources:
       OKActions:
         - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
       Tags:
-        - Key: "aws-cloudformation:stack-name"
-          Value: !Ref "AWS::StackName"
-        - Key: "aws-cloudformation:stack-id"
-          Value: !Ref "AWS::StackId"
-        - Key: "aws-cloudformation:logical-id"
-          Value: rHighNewFlowsAlarm
         - Key: AppManagerCFNStackKey
           Value: !Ref "AWS::StackName"
 
@@ -963,12 +945,6 @@ Resources:
       OKActions:
         - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
       Tags:
-        - Key: "aws-cloudformation:stack-name"
-          Value: !Ref "AWS::StackName"
-        - Key: "aws-cloudformation:stack-id"
-          Value: !Ref "AWS::StackId"
-        - Key: "aws-cloudformation:logical-id"
-          Value: rHighCpuAlarm
         - Key: AppManagerCFNStackKey
           Value: !Ref "AWS::StackName"
 
@@ -996,12 +972,6 @@ Resources:
       OKActions:
         - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
       Tags:
-        - Key: "aws-cloudformation:stack-name"
-          Value: !Ref "AWS::StackName"
-        - Key: "aws-cloudformation:stack-id"
-          Value: !Ref "AWS::StackId"
-        - Key: "aws-cloudformation:logical-id"
-          Value: rLowHealthyHostAlarm
         - Key: AppManagerCFNStackKey
           Value: !Ref "AWS::StackName"
 
@@ -1022,12 +992,6 @@ Resources:
       ComparisonOperator: LessThanThreshold
       TreatMissingData: notBreaching
       Tags:
-        - Key: "aws-cloudformation:stack-name"
-          Value: !Ref "AWS::StackName"
-        - Key: "aws-cloudformation:stack-id"
-          Value: !Ref "AWS::StackId"
-        - Key: "aws-cloudformation:logical-id"
-          Value: rLowConnectionsAlarm
         - Key: AppManagerCFNStackKey
           Value: !Ref "AWS::StackName"
 
@@ -1048,12 +1012,6 @@ Resources:
       ComparisonOperator: LessThanThreshold
       TreatMissingData: notBreaching
       Tags:
-        - Key: "aws-cloudformation:stack-name"
-          Value: !Ref "AWS::StackName"
-        - Key: "aws-cloudformation:stack-id"
-          Value: !Ref "AWS::StackId"
-        - Key: "aws-cloudformation:logical-id"
-          Value: rLowCpuAlarm
         - Key: AppManagerCFNStackKey
           Value: !Ref "AWS::StackName"
 
@@ -1065,18 +1023,128 @@ Resources:
       AlarmRule: !Sub "ALARM(${rLowConnectionsAlarm}) AND ALARM(${rLowCpuAlarm})"
       AlarmActions:
         - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
-        - !Ref rScaleInPolicy
+        - !GetAtt rScaleInFunction.Arn
       OKActions:
         - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+      Tags:
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rScaleInFunctionLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: "Ignoring KMS key"
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${rScaleInFunction}"
+      RetentionInDays: 3
+  
+  rScaleInFunctionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: !Sub "lambda.${AWS::URLSuffix}"
+            Action: "sts:AssumeRole"
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref "AWS::AccountId"
+      Description: !Sub "DO NOT DELETE - Used by Lambda. Created by CloudFormation ${AWS::StackId}"
+      Policies:
+        - PolicyName: ExecuteScalingPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: "autoscaling:ExecutePolicy"
+                Resource: !Sub "arn:${AWS::Partition}:autoscaling:${AWS::Region}:${AWS::AccountId}:autoScalingGroup:*:autoScalingGroupName/${rAutoScalingGroup}"
       Tags:
         - Key: "aws-cloudformation:stack-name"
           Value: !Ref "AWS::StackName"
         - Key: "aws-cloudformation:stack-id"
           Value: !Ref "AWS::StackId"
         - Key: "aws-cloudformation:logical-id"
-          Value: rScaleInCompositeAlarm
+          Value: rScaleInFunctionRole
+
+  rCloudWatchPolicy:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: CloudWatchLogs
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource: !GetAtt rScaleInFunctionLogGroup.Arn
+      Roles:
+        - !Ref rScaleInFunctionRole
+  
+  rScaleInFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-scale-in-executor"
+      Description: Executes scale-in policy when triggered by composite alarm
+      Runtime: python3.14
+      Handler: index.handler
+      Role: !GetAtt rScaleInFunctionRole.Arn
+      Timeout: 30
+      Environment:
+        Variables:
+          ASG_NAME: !Ref rAutoScalingGroup
+          POLICY_NAME: !Ref rScaleInPolicy
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def handler(event, context):
+              asg_name = os.environ['ASG_NAME']
+              policy_arn = os.environ['POLICY_NAME']
+              # Extract policy name from ARN
+              policy_name = policy_arn.split(':policyName/')[1] if ':policyName/' in policy_arn else policy_arn
+              
+              logger.info(f"Executing scale-in policy {policy_name} for ASG {asg_name}")
+              
+              client = boto3.client('autoscaling')
+              response = client.execute_policy(
+                  AutoScalingGroupName=asg_name,
+                  PolicyName=policy_name,
+                  HonorCooldown=True
+              )
+              
+              logger.info(f"Scale-in policy executed successfully")
+              return {'statusCode': 200, 'body': 'Scale-in policy executed'}
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rScaleInLambda
         - Key: AppManagerCFNStackKey
           Value: !Ref "AWS::StackName"
+
+  rScaleInFunctionPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !Ref rScaleInFunction
+      Action: "lambda:InvokeFunction"
+      Principal: lambda.alarms.cloudwatch.amazonaws.com
+      SourceAccount: !Ref "AWS::AccountId"
+      SourceArn: !GetAtt rScaleInCompositeAlarm.Arn
 
   rLoadBalancer:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
