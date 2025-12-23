@@ -1096,7 +1096,6 @@ Resources:
   rScaleInFunction:
     Type: "AWS::Lambda::Function"
     Properties:
-      FunctionName: !Sub "${AWS::StackName}-scale-in-executor"
       Description: Executes scale-in policy when triggered by composite alarm
       Runtime: python3.14
       Handler: index.handler
@@ -1115,6 +1114,8 @@ Resources:
           logger = logging.getLogger()
           logger.setLevel(logging.INFO)
 
+          client = boto3.client('autoscaling')
+
           def handler(event, context):
               asg_name = os.environ['ASG_NAME']
               policy_arn = os.environ['POLICY_NAME']
@@ -1123,7 +1124,6 @@ Resources:
               
               logger.info(f"Executing scale-in policy {policy_name} for ASG {asg_name}")
               
-              client = boto3.client('autoscaling')
               response = client.execute_policy(
                   AutoScalingGroupName=asg_name,
                   PolicyName=policy_name,
@@ -1138,7 +1138,7 @@ Resources:
         - Key: "aws-cloudformation:stack-id"
           Value: !Ref "AWS::StackId"
         - Key: "aws-cloudformation:logical-id"
-          Value: rScaleInLambda
+          Value: rScaleInFunction
         - Key: AppManagerCFNStackKey
           Value: !Ref "AWS::StackName"
 
