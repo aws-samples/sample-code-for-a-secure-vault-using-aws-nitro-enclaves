@@ -28,7 +28,6 @@ use std::{
 };
 
 use anyhow::{Result, anyhow, bail};
-use byteorder::{ByteOrder, LittleEndian};
 use vsock::VsockStream;
 
 use crate::constants::MAX_MESSAGE_SIZE;
@@ -53,8 +52,7 @@ pub fn send_message<W: Write>(writer: &mut W, msg: &str) -> Result<()> {
         .len()
         .try_into()
         .map_err(|err| anyhow!("failed to compute message length: {:?}", err))?;
-    let mut header_buf = [0; size_of::<u64>()];
-    LittleEndian::write_u64(&mut header_buf, payload_len);
+    let header_buf = payload_len.to_le_bytes();
     writer
         .write_all(&header_buf)
         .map_err(|err| anyhow!("failed to write message header: {:?}", err))?;
@@ -89,8 +87,8 @@ pub fn recv_message<R: Read>(reader: &mut R) -> Result<Vec<u8>> {
         .read_exact(&mut size_buf)
         .map_err(|err| anyhow!("failed to read message header: {:?}", err))?;
 
-    // Convert the size buffer to u64
-    let size = LittleEndian::read_u64(&size_buf);
+    // Convert the size buffer to u64 using std method
+    let size = u64::from_le_bytes(size_buf);
 
     // Validate message size before allocation to prevent memory exhaustion DoS
     if size > MAX_MESSAGE_SIZE {
@@ -200,9 +198,8 @@ mod tests {
         ) {
             let size = MAX_MESSAGE_SIZE + size_offset;
 
-            // Create a mock stream with an oversized header
-            let mut header = [0u8; 8];
-            LittleEndian::write_u64(&mut header, size);
+            // Create a mock stream with an oversized header using std method
+            let header = size.to_le_bytes();
             let mut cursor = Cursor::new(header.to_vec());
 
             // Attempt to receive - should fail before allocating
@@ -240,10 +237,9 @@ mod tests {
             // Create test data of the specified size
             let payload = vec![0xABu8; size as usize];
 
-            // Create a mock stream with header + payload
+            // Create a mock stream with header + payload using std method
             let mut data = Vec::new();
-            let mut header = [0u8; 8];
-            LittleEndian::write_u64(&mut header, size);
+            let header = size.to_le_bytes();
             data.extend_from_slice(&header);
             data.extend_from_slice(&payload);
 
@@ -282,8 +278,7 @@ mod tests {
 
             // We can't actually allocate MAX_MESSAGE_SIZE bytes in a test,
             // so we just verify the size check passes by checking the error type
-            let mut header = [0u8; 8];
-            LittleEndian::write_u64(&mut header, size);
+            let header = size.to_le_bytes();
             // Add minimal payload data (we'll get an EOF error, not a size error)
             let mut cursor = Cursor::new(header.to_vec());
 
@@ -312,9 +307,8 @@ mod tests {
             // Generate any u64 value to test size handling
             size in any::<u64>()
         ) {
-            // Create a mock stream with the specified size in header
-            let mut header = [0u8; 8];
-            LittleEndian::write_u64(&mut header, size);
+            // Create a mock stream with the specified size in header using std method
+            let header = size.to_le_bytes();
             let mut cursor = Cursor::new(header.to_vec());
 
             // This should never panic - it should either succeed or return an error
@@ -338,8 +332,7 @@ mod tests {
     fn test_max_message_size_exactly_rejected() {
         // Test that MAX_MESSAGE_SIZE + 1 is rejected
         let size = MAX_MESSAGE_SIZE + 1;
-        let mut header = [0u8; 8];
-        LittleEndian::write_u64(&mut header, size);
+        let header = size.to_le_bytes();
         let mut cursor = Cursor::new(header.to_vec());
 
         let result = recv_message(&mut cursor);
@@ -352,8 +345,7 @@ mod tests {
     fn test_max_message_size_exactly_accepted() {
         // Test that MAX_MESSAGE_SIZE is accepted (size check passes)
         let size = MAX_MESSAGE_SIZE;
-        let mut header = [0u8; 8];
-        LittleEndian::write_u64(&mut header, size);
+        let header = size.to_le_bytes();
         let mut cursor = Cursor::new(header.to_vec());
 
         let result = recv_message(&mut cursor);
@@ -461,8 +453,7 @@ mod tests {
     fn test_truncated_message_body() {
         // Header says 100 bytes, but only 10 bytes of body provided
         let mut data = Vec::new();
-        let mut header = [0u8; 8];
-        LittleEndian::write_u64(&mut header, 100);
+        let header = 100u64.to_le_bytes();
         data.extend_from_slice(&header);
         data.extend_from_slice(&[0xABu8; 10]); // Only 10 bytes instead of 100
 
@@ -481,8 +472,7 @@ mod tests {
     #[test]
     fn test_truncated_message_empty_body() {
         // Header says 50 bytes, but no body provided
-        let mut header = [0u8; 8];
-        LittleEndian::write_u64(&mut header, 50);
+        let header = 50u64.to_le_bytes();
         let mut cursor = Cursor::new(header.to_vec());
 
         let result = recv_message(&mut cursor);

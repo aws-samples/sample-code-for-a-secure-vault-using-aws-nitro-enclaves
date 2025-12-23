@@ -3,11 +3,12 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use cel_interpreter::Value as celValue;
 use cel_interpreter::{Context, Program};
 use serde_json::Value;
 
+use crate::constants::MAX_EXPRESSION_LENGTH;
 use crate::functions;
 
 pub fn execute_expressions(
@@ -16,6 +17,18 @@ pub fn execute_expressions(
 ) -> Result<BTreeMap<String, Value>> {
     if expressions.is_empty() {
         return Ok(fields.clone());
+    }
+
+    // Validate expression lengths before processing
+    for (field, expression) in expressions {
+        if expression.len() > MAX_EXPRESSION_LENGTH {
+            bail!(
+                "expression for field '{}' exceeds maximum length: {} > {}",
+                field,
+                expression.len(),
+                MAX_EXPRESSION_LENGTH
+            );
+        }
     }
 
     let mut context = Context::default();
@@ -63,6 +76,9 @@ pub fn execute_expressions(
         let result: Value = value
             .json()
             .map_err(|err| anyhow!("Unable to serialize JSON value: {err}"))?;
+
+        // Only log expression results in debug builds to prevent sensitive data leakage
+        #[cfg(debug_assertions)]
         println!("[enclave] expression: {expression} = {result:?}");
 
         transformed.insert(field.to_string(), result);

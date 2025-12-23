@@ -9,6 +9,9 @@ pub const MAX_MESSAGE_SIZE: u64 = 10 * 1024 * 1024;
 /// Maximum number of fields allowed per request to prevent resource exhaustion
 pub const MAX_FIELDS: usize = 1000;
 
+/// Maximum allowed expression length (10 KB) to prevent resource exhaustion attacks
+pub const MAX_EXPRESSION_LENGTH: usize = 10 * 1024;
+
 // build_suite_id(0x0010u16, 0x0001u16, 0x0002u16) - DH_KEM_P256_HKDF_SHA256_AES_256
 pub const P256: &[u8; 10] = &[72, 80, 75, 69, 0, 16, 0, 1, 0, 2];
 // build_suite_id(0x0011u16, 0x0002u16, 0x0002u16) - DH_KEM_P384_HKDF_SHA384_AES_256

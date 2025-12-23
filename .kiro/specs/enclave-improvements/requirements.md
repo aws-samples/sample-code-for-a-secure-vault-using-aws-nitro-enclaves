@@ -285,3 +285,76 @@ This document specifies the requirements for implementing security, reliability,
 4. THE Enclave code SHALL NOT use slice indexing `[]` that could panic on out-of-bounds
 5. THE Enclave code SHALL NOT use integer division without checking for zero divisor
 6. WHEN the optimizer cannot prove bounds are safe, THE code SHALL use `.get()` with explicit error handling
+
+### Requirement 26: Expression Length Limits
+
+**User Story:** As a security engineer, I want CEL expression lengths to be limited, so that attackers cannot cause resource exhaustion with extremely long expressions.
+
+#### Acceptance Criteria
+
+1. THE Constants module SHALL define a maximum expression length constant (10 KB)
+2. WHEN executing expressions, THE execute_expressions() function SHALL validate each expression length before compilation
+3. IF an expression exceeds the maximum length, THEN THE function SHALL return an error
+4. THE error message SHALL include both the actual length and the maximum allowed
+
+### Requirement 27: Expression Result Sanitization
+
+**User Story:** As a security engineer, I want expression results to not be logged in production, so that sensitive decrypted data cannot leak to logs.
+
+#### Acceptance Criteria
+
+1. THE expressions module SHALL NOT log expression results in production builds
+2. THE logging of expression results SHALL be gated behind debug builds only
+3. WHEN an expression fails, THE error message SHALL NOT include the expression input values
+
+### Requirement 28: Dependency Reduction
+
+**User Story:** As a developer, I want to minimize external dependencies, so that the attack surface and binary size are reduced.
+
+#### Acceptance Criteria
+
+1. THE protocol module SHALL use std `from_le_bytes()` and `to_le_bytes()` instead of the byteorder crate
+2. THE Cargo.toml SHALL remove the byteorder dependency after migration
+3. THE protocol module SHALL maintain identical wire format behavior after migration
+
+### Requirement 29: Aggressive Size Optimization
+
+**User Story:** As a system operator, I want the enclave binary to be as small as possible, so that it loads faster and uses less memory.
+
+#### Acceptance Criteria
+
+1. THE workspace Cargo.toml release profile SHALL use `opt-level = "z"` for maximum size reduction
+2. THE release profile SHALL use `lto = true` (full LTO) instead of `lto = "thin"`
+3. THE enclave binary size SHALL be verified to decrease after optimization changes
+
+### Requirement 30: Const Function Optimization
+
+**User Story:** As a developer, I want compile-time evaluation where possible, so that runtime overhead is minimized.
+
+#### Acceptance Criteria
+
+1. THE Suite::encapped_key_size() method SHALL be marked as `const fn`
+2. THE MAX_MESSAGE_SIZE, MAX_FIELDS, and other limit constants SHALL be usable in const contexts
+3. THE compiler SHALL be able to evaluate suite key sizes at compile time
+
+### Requirement 31: Inline Hints for Critical Paths
+
+**User Story:** As a developer, I want critical path functions to be inlined, so that function call overhead is eliminated.
+
+#### Acceptance Criteria
+
+1. THE decrypt_value() function in hpke.rs SHALL have `#[inline]` attribute
+2. THE base64_decode() function in utils.rs SHALL have `#[inline]` attribute
+3. THE Encoding::parse() method SHALL have `#[inline]` attribute
+
+### Requirement 32: Credential Debug Redaction
+
+**User Story:** As a security engineer, I want credential fields to be redacted in debug output, so that sensitive AWS credentials cannot leak to logs or error responses.
+
+#### Acceptance Criteria
+
+1. THE Credential struct SHALL implement a custom Debug trait that redacts all sensitive fields
+2. WHEN Debug formatting is applied to Credential, THE output SHALL show "[REDACTED]" for access_key_id, secret_access_key, and session_token
+3. THE Credential struct SHALL NOT derive Debug automatically
+4. THE EnclaveRequest struct's Debug output SHALL NOT expose credential values
+5. WHEN an error occurs during request processing, THE error message SHALL NOT include credential values

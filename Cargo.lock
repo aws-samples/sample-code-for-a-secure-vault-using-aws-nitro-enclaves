@@ -866,7 +866,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "aws-lc-rs",
- "byteorder",
  "cel-interpreter",
  "chrono",
  "data-encoding",

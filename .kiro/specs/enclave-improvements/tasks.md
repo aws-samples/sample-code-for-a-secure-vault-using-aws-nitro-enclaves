@@ -246,6 +246,67 @@ This implementation plan addresses security, reliability, and code quality impro
   - Run `nm` or similar to verify no panic symbols linked
   - Ask the user if questions arise
 
+- [x] 6. Phase 6: Additional Optimizations
+
+- [x] 6.1 Add expression length limit constant in constants.rs
+  - Add `MAX_EXPRESSION_LENGTH` constant (10 KB = 10 * 1024)
+  - _Requirements: 26.1_
+
+- [x] 6.2 Add expression length validation in expressions.rs
+  - Validate each expression length before compilation
+  - Return error if expression exceeds MAX_EXPRESSION_LENGTH
+  - Include actual length and maximum in error message
+  - _Requirements: 26.2, 26.3, 26.4_
+
+- [x] 6.3 Gate expression result logging behind debug builds
+  - Wrap `println!("[enclave] expression: ...")` with `#[cfg(debug_assertions)]`
+  - Ensure error messages don't include expression input values
+  - _Requirements: 27.1, 27.2, 27.3_
+
+- [x] 6.4 Replace byteorder crate with std methods in protocol.rs
+  - Replace `LittleEndian::write_u64()` with `u64::to_le_bytes()`
+  - Replace `LittleEndian::read_u64()` with `u64::from_le_bytes()`
+  - Remove `use byteorder::{ByteOrder, LittleEndian};` import
+  - _Requirements: 28.1, 28.3_
+
+- [x] 6.5 Remove byteorder dependency from Cargo.toml
+  - Remove `byteorder = { version = "=1.5.0", default-features = false }` from enclave/Cargo.toml
+  - _Requirements: 28.2_
+
+- [x] 6.6 Update workspace release profile for aggressive size optimization
+  - Change `opt-level = "s"` to `opt-level = "z"` in Cargo.toml
+  - Change `lto = "thin"` to `lto = true` in Cargo.toml
+  - _Requirements: 29.1, 29.2_
+
+- [x] 6.7 Mark Suite::encapped_key_size() as const fn
+  - Add `const` keyword to `encapped_key_size()` method signature
+  - Verify constants are usable in const contexts
+  - _Requirements: 30.1, 30.2, 30.3_
+
+- [x] 6.8 Add inline hints to critical path functions
+  - Add `#[inline]` to `decrypt_value()` in hpke.rs
+  - Add `#[inline]` to `base64_decode()` in utils.rs
+  - Add `#[inline]` to `Encoding::parse()` in models.rs (if exists)
+  - _Requirements: 31.1, 31.2, 31.3_
+
+- [x] 6.10 Implement custom Debug for Credential struct
+  - Remove `Debug` from derive macro on Credential struct
+  - Add `use std::fmt;` import if not present
+  - Implement `fmt::Debug` trait for Credential
+  - Redact access_key_id, secret_access_key, and session_token with "[REDACTED]"
+  - _Requirements: 32.1, 32.2, 32.3_
+
+- [x] 6.11 Add test for Credential debug redaction
+  - Verify Debug output contains "[REDACTED]" for all credential fields
+  - Verify actual credential values do not appear in debug output
+  - _Requirements: 32.4, 32.5_
+
+- [x] 6.9 Checkpoint - Verify optimizations
+  - Run `cargo build --release` and compare binary size (should decrease)
+  - Run `cargo test` in enclave directory to verify functionality
+  - Run `cargo clippy` to verify no warnings
+  - Ask the user if questions arise
+
 ## Notes
 
 - All tasks including property-based tests are required for comprehensive coverage
@@ -260,3 +321,9 @@ This implementation plan addresses security, reliability, and code quality impro
   - Enable clippy lints to catch panic-prone patterns
   - Set `panic = "abort"` in release profile to minimize binary size
   - Verify no panic handler is linked by checking binary size (~300KB savings)
+- **Phase 6 Optimizations**: Additional improvements for size, security, and performance:
+  - Expression length limits prevent resource exhaustion attacks
+  - Debug-only logging prevents sensitive data leakage to production logs
+  - Replacing `byteorder` with std methods reduces dependencies and attack surface
+  - `opt-level = "z"` and full LTO provide more aggressive size optimization
+  - `const fn` and `#[inline]` hints improve runtime performance

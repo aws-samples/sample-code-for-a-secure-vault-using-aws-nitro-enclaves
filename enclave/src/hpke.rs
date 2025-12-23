@@ -43,6 +43,7 @@ use crate::models::EncryptedData;
 /// Returns an error if:
 /// - HPKE decryption fails (wrong key, corrupted data, AAD mismatch)
 /// - The decrypted bytes are not valid UTF-8
+#[inline]
 pub fn decrypt_value(
     suite: &dyn Hpke,
     private_key: &HpkePrivateKey,

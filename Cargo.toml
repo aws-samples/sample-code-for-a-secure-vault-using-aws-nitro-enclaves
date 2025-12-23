@@ -7,7 +7,7 @@ resolver = "2"
 
 [profile.release]
 strip = true      # Automatically strip symbols from the binary
-lto = "thin"      # Enable link time optimization
+lto = true        # Enable full link time optimization for better size reduction
 codegen-units = 1 # Maximize size reduction optimizations
 panic = "abort"   # Terminate process upon panic
-opt-level = "s"   # optimize for size
+opt-level = "z"   # Optimize for size (more aggressive than "s")

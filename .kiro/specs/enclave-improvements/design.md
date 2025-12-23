@@ -768,6 +768,195 @@ println!("[enclave] vault_id: {:?}", &self.request.vault_id);
 
 Or remove entirely and rely on structured error responses.
 
+## Phase 6: Additional Optimizations
+
+### 16. Expression Length Limits (expressions.rs)
+
+Add validation to prevent resource exhaustion from extremely long expressions:
+
+```rust
+use crate::constants::MAX_EXPRESSION_LENGTH;
+
+pub fn execute_expressions(
+    fields: &BTreeMap<String, Value>,
+    expressions: &BTreeMap<String, String>,
+) -> Result<BTreeMap<String, Value>> {
+    if expressions.is_empty() {
+        return Ok(fields.clone());
+    }
+
+    // Validate expression lengths before processing
+    for (field, expression) in expressions {
+        if expression.len() > MAX_EXPRESSION_LENGTH {
+            bail!(
+                "expression for field '{}' exceeds maximum length: {} > {}",
+                field,
+                expression.len(),
+                MAX_EXPRESSION_LENGTH
+            );
+        }
+    }
+
+    // ... rest of implementation
+}
+```
+
+Add constant to constants.rs:
+
+```rust
+/// Maximum allowed expression length (10 KB)
+pub const MAX_EXPRESSION_LENGTH: usize = 10 * 1024;
+```
+
+### 17. Expression Result Sanitization (expressions.rs)
+
+Gate expression result logging behind debug builds only:
+
+```rust
+// Only log expression results in debug builds to prevent sensitive data leakage
+#[cfg(debug_assertions)]
+println!("[enclave] expression: {expression} = {result:?}");
+```
+
+### 18. Byteorder Replacement (protocol.rs)
+
+Replace the `byteorder` crate with std library methods for reduced dependencies:
+
+Before:
+```rust
+use byteorder::{ByteOrder, LittleEndian};
+
+let mut header_buf = [0; size_of::<u64>()];
+LittleEndian::write_u64(&mut header_buf, payload_len);
+
+let size = LittleEndian::read_u64(&size_buf);
+```
+
+After:
+```rust
+// No external dependency needed - use std methods
+let header_buf = payload_len.to_le_bytes();
+
+let size = u64::from_le_bytes(size_buf);
+```
+
+This eliminates the `byteorder` dependency while maintaining identical wire format.
+
+### 19. Aggressive Size Optimization (Cargo.toml)
+
+Update workspace release profile for maximum size reduction:
+
+```toml
+[profile.release]
+strip = true      # Automatically strip symbols from the binary
+lto = true        # Full LTO instead of thin for better size reduction
+codegen-units = 1 # Maximize size reduction optimizations
+panic = "abort"   # Terminate process upon panic
+opt-level = "z"   # Optimize for size (more aggressive than "s")
+```
+
+Key changes:
+- `opt-level = "z"` instead of `"s"` - more aggressive size optimization
+- `lto = true` instead of `"thin"` - full LTO for better dead code elimination
+
+### 20. Const Function Optimization (models.rs)
+
+Mark `encapped_key_size()` as const fn for compile-time evaluation:
+
+```rust
+impl Suite {
+    /// Returns the encapped key size in bytes for this suite.
+    /// This is a const fn to allow compile-time evaluation.
+    pub const fn encapped_key_size(&self) -> usize {
+        match self {
+            Suite::P256 => 65,
+            Suite::P384 => 97,
+            Suite::P521 => 133,
+        }
+    }
+}
+```
+
+### 21. Inline Hints for Critical Paths
+
+Add `#[inline]` attributes to frequently-called functions:
+
+In hpke.rs:
+```rust
+#[inline]
+pub fn decrypt_value(
+    suite: &'static dyn Hpke,
+    private_key: &HpkePrivateKey,
+    info: &[u8],
+    field: &str,
+    encrypted_data: EncryptedData,
+) -> Result<Value> {
+    // ...
+}
+```
+
+In utils.rs:
+```rust
+#[inline]
+pub fn base64_decode(value: &str) -> Result<Vec<u8>> {
+    // ...
+}
+```
+
+In models.rs (Encoding::parse if it exists):
+```rust
+impl Encoding {
+    #[inline]
+    pub fn parse(value: Option<&str>) -> Self {
+        // ...
+    }
+}
+```
+
+### 22. Credential Debug Redaction (models.rs)
+
+Replace the derived `Debug` implementation with a custom one that redacts sensitive fields:
+
+Before:
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize, ZeroizeOnDrop)]
+pub struct Credential {
+    #[serde(rename = "AccessKeyId")]
+    pub access_key_id: String,
+    #[serde(rename = "SecretAccessKey")]
+    pub secret_access_key: String,
+    #[serde(rename = "Token")]
+    pub session_token: String,
+}
+```
+
+After:
+```rust
+use std::fmt;
+
+#[derive(Clone, Serialize, Deserialize, ZeroizeOnDrop)]
+pub struct Credential {
+    #[serde(rename = "AccessKeyId")]
+    pub access_key_id: String,
+    #[serde(rename = "SecretAccessKey")]
+    pub secret_access_key: String,
+    #[serde(rename = "Token")]
+    pub session_token: String,
+}
+
+/// Custom Debug implementation to prevent accidental logging of sensitive data.
+impl fmt::Debug for Credential {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Credential")
+            .field("access_key_id", &"[REDACTED]")
+            .field("secret_access_key", &"[REDACTED]")
+            .field("session_token", &"[REDACTED]")
+            .finish()
+    }
+}
+```
+
+This ensures that even if `EnclaveRequest` is debug-printed (which contains `Credential`), the actual credential values will never appear in logs or error messages.
 
 ## Correctness Properties
 
@@ -839,6 +1028,18 @@ Or remove entirely and rely on structured error responses.
 
 **Validates: Requirements 22.1, 22.2, 22.3**
 
+### Property 12: Expression Length Bounds
+
+*For any* expression with length greater than `MAX_EXPRESSION_LENGTH`, the `execute_expressions()` function SHALL return an error before attempting to compile the expression.
+
+**Validates: Requirements 26.2, 26.3**
+
+### Property 13: Credential Debug Redaction
+
+*For any* `Credential` instance, formatting it with `{:?}` SHALL produce output containing "[REDACTED]" for all sensitive fields and SHALL NOT contain the actual access_key_id, secret_access_key, or session_token values.
+
+**Validates: Requirements 32.1, 32.2**
+
 ## Error Handling
 
 ### Protocol Errors
@@ -855,6 +1056,7 @@ Or remove entirely and rely on structured error responses.
 | Error Condition | Response | Log Level |
 |----------------|----------|-----------|
 | Field count exceeds MAX_FIELDS | Return error with counts | Error |
+| Expression length exceeds MAX_EXPRESSION_LENGTH | Return error with lengths | Error |
 | Invalid suite ID | Return error | Error |
 | Encrypted data too short for suite | Return error with size details | Error |
 | Invalid hex format (missing '#') | Return error | Error |

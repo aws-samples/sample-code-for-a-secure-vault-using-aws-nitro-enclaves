@@ -19,6 +19,7 @@
 //! - Input validation is performed before processing
 
 use std::collections::BTreeMap;
+use std::fmt;
 
 use anyhow::{Error, Result, anyhow, bail};
 use aws_lc_rs::signature::{
@@ -46,7 +47,9 @@ use crate::utils::base64_decode;
 /// These credentials are passed from the parent instance and used to authenticate
 /// KMS decrypt requests. The struct implements `ZeroizeOnDrop` to ensure credentials
 /// are securely erased from memory when no longer needed.
-#[derive(Debug, Clone, Serialize, Deserialize, ZeroizeOnDrop)]
+///
+/// Note: Debug is manually implemented to redact sensitive fields.
+#[derive(Clone, Serialize, Deserialize, ZeroizeOnDrop)]
 pub struct Credential {
     #[serde(rename = "AccessKeyId")]
     pub access_key_id: String,
@@ -56,6 +59,17 @@ pub struct Credential {
 
     #[serde(rename = "Token")]
     pub session_token: String,
+}
+
+/// Custom Debug implementation to prevent accidental logging of sensitive data.
+impl fmt::Debug for Credential {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Credential")
+            .field("access_key_id", &"[REDACTED]")
+            .field("secret_access_key", &"[REDACTED]")
+            .field("session_token", &"[REDACTED]")
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -273,6 +287,7 @@ pub enum Encoding {
 
 impl Encoding {
     /// Parse encrypted data according to this encoding format
+    #[inline]
     pub fn parse(&self, value: &str, suite: &Suite) -> Result<EncryptedData> {
         match self {
             Encoding::Hex => EncryptedData::from_hex(value),
@@ -314,8 +329,9 @@ pub enum Suite {
 }
 
 impl Suite {
-    /// Returns the encapped key size in bytes for this suite (RFC 9180 Nenc value)
-    pub fn encapped_key_size(&self) -> usize {
+    /// Returns the encapped key size in bytes for this suite (RFC 9180 Nenc value).
+    /// This is a const fn to allow compile-time evaluation.
+    pub const fn encapped_key_size(&self) -> usize {
         match self {
             Suite::P256 => 65,
             Suite::P384 => 97,
@@ -1376,5 +1392,113 @@ mod tests {
 
         // The value should be exactly what we put in - no double escaping
         assert_eq!(recovered_value, original_value);
+    }
+
+    // Tests for Credential debug redaction
+    // _Requirements: 32.4, 32.5_
+
+    #[test]
+    fn test_credential_debug_redacts_all_fields() {
+        let credential = Credential {
+            access_key_id: "AKIAIOSFODNN7EXAMPLE".to_string(),
+            secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY".to_string(),
+            session_token: "FwoGZXIvYXdzEBYaDHVzLWVhc3QtMSJHMEUCIQDExample".to_string(),
+        };
+
+        let debug_output = format!("{:?}", credential);
+
+        // Verify Debug output contains "[REDACTED]" for all credential fields
+        assert!(
+            debug_output.contains("[REDACTED]"),
+            "Debug output should contain [REDACTED], got: {}",
+            debug_output
+        );
+
+        // Verify actual credential values do not appear in debug output
+        assert!(
+            !debug_output.contains("AKIAIOSFODNN7EXAMPLE"),
+            "Debug output should NOT contain access_key_id value"
+        );
+        assert!(
+            !debug_output.contains("wJalrXUtnFEMI"),
+            "Debug output should NOT contain secret_access_key value"
+        );
+        assert!(
+            !debug_output.contains("FwoGZXIvYXdzEBYaDHVzLWVhc3QtMSJHMEUCIQDExample"),
+            "Debug output should NOT contain session_token value"
+        );
+    }
+
+    #[test]
+    fn test_credential_debug_format_structure() {
+        let credential = Credential {
+            access_key_id: "test_key_id".to_string(),
+            secret_access_key: "test_secret".to_string(),
+            session_token: "test_token".to_string(),
+        };
+
+        let debug_output = format!("{:?}", credential);
+
+        // Verify the debug output has the expected structure
+        assert!(
+            debug_output.contains("Credential"),
+            "Debug output should contain struct name 'Credential'"
+        );
+        assert!(
+            debug_output.contains("access_key_id"),
+            "Debug output should contain field name 'access_key_id'"
+        );
+        assert!(
+            debug_output.contains("secret_access_key"),
+            "Debug output should contain field name 'secret_access_key'"
+        );
+        assert!(
+            debug_output.contains("session_token"),
+            "Debug output should contain field name 'session_token'"
+        );
+    }
+
+    #[test]
+    fn test_enclave_request_debug_does_not_expose_credentials() {
+        let credential = Credential {
+            access_key_id: "AKIAIOSFODNN7EXAMPLE".to_string(),
+            secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY".to_string(),
+            session_token: "FwoGZXIvYXdzEBYaDHVzLWVhc3QtMSJHMEUCIQDExample".to_string(),
+        };
+
+        let request = EnclaveRequest {
+            credential,
+            request: ParentRequest {
+                vault_id: "v_test123".to_string(),
+                region: "us-east-1".to_string(),
+                fields: BTreeMap::new(),
+                suite_id: "SFBLRQARAAIAAg==".to_string(),
+                encrypted_private_key: "test_key".to_string(),
+                expressions: None,
+                encoding: None,
+            },
+        };
+
+        let debug_output = format!("{:?}", request);
+
+        // Verify actual credential values do not appear in EnclaveRequest debug output
+        assert!(
+            !debug_output.contains("AKIAIOSFODNN7EXAMPLE"),
+            "EnclaveRequest debug should NOT contain access_key_id value"
+        );
+        assert!(
+            !debug_output.contains("wJalrXUtnFEMI"),
+            "EnclaveRequest debug should NOT contain secret_access_key value"
+        );
+        assert!(
+            !debug_output.contains("FwoGZXIvYXdzEBYaDHVzLWVhc3QtMSJHMEUCIQDExample"),
+            "EnclaveRequest debug should NOT contain session_token value"
+        );
+
+        // Verify [REDACTED] appears in the output
+        assert!(
+            debug_output.contains("[REDACTED]"),
+            "EnclaveRequest debug should contain [REDACTED] for credential fields"
+        );
     }
 }
