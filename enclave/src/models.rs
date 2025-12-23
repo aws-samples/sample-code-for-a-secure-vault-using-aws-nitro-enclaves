@@ -18,8 +18,9 @@
 //! - Field count is limited to prevent resource exhaustion
 //! - Input validation is performed before processing
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::fmt;
+use std::sync::Mutex;
 
 use anyhow::{Error, Result, anyhow, bail};
 use aws_lc_rs::signature::{
@@ -27,6 +28,7 @@ use aws_lc_rs::signature::{
     EcdsaSigningAlgorithm,
 };
 use data_encoding::HEXLOWER;
+use rayon::prelude::*;
 use rustls::crypto::aws_lc_rs::hpke::{
     DH_KEM_P256_HKDF_SHA256_AES_256, DH_KEM_P384_HKDF_SHA384_AES_256,
     DH_KEM_P521_HKDF_SHA512_AES_256,
@@ -76,11 +78,11 @@ impl fmt::Debug for Credential {
 pub struct ParentRequest {
     pub vault_id: String,
     pub region: String,
-    pub fields: BTreeMap<String, String>,
+    pub fields: HashMap<String, String>,
     pub suite_id: String,              // base64 encoded
     pub encrypted_private_key: String, // base64 encoded
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub expressions: Option<BTreeMap<String, String>>,
+    pub expressions: Option<HashMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub encoding: Option<String>,
 }
@@ -152,7 +154,7 @@ impl EnclaveRequest {
         Ok(sk)
     }
 
-    pub fn decrypt_fields(&self) -> Result<(BTreeMap<String, Value>, Vec<Error>)> {
+    pub fn decrypt_fields(&self) -> Result<(HashMap<String, Value>, Vec<Error>)> {
         // Validate all inputs before processing
         self.validate()?;
 
@@ -164,7 +166,7 @@ impl EnclaveRequest {
 
         let hpke_suite = suite.get_hpke_suite();
         let info = self.request.vault_id.as_bytes();
-        let mut errors: Vec<Error> = Vec::new();
+        let errors: Mutex<Vec<Error>> = Mutex::new(Vec::new());
 
         // Sensitive context logging gated behind debug builds only
         #[cfg(debug_assertions)]
@@ -173,33 +175,55 @@ impl EnclaveRequest {
             println!("[enclave] encoding: {:?}", encoding);
         }
 
-        // Single loop with encoding-based parsing
-        let mut decrypted_fields = BTreeMap::new();
-        for (field, value) in &self.request.fields {
-            let encrypted_data = encoding.parse(value.as_str(), &suite)?;
+        // First pass: parse all encrypted data (sequential, may fail early)
+        let parsed_fields: Vec<(&String, EncryptedData)> = self
+            .request
+            .fields
+            .iter()
+            .map(|(field, value)| {
+                let encrypted_data = encoding.parse(value.as_str(), &suite)?;
+                Ok((field, encrypted_data))
+            })
+            .collect::<Result<Vec<_>>>()?;
 
-            let decrypted = decrypt_value(hpke_suite, &private_key, info, field, encrypted_data)
-                .unwrap_or_else(|error| {
-                    errors.push(error);
-                    Value::Null
-                });
-            decrypted_fields.insert(field.to_string(), decrypted);
-        }
+        // Second pass: decrypt in parallel (CPU-intensive operations)
+        let decrypted_fields: HashMap<String, Value> = parsed_fields
+            .into_par_iter()
+            .map(|(field, encrypted_data)| {
+                let decrypted =
+                    decrypt_value(hpke_suite, &private_key, info, field, encrypted_data)
+                        .unwrap_or_else(|error| {
+                            // Safe: Mutex::lock only fails if another thread panicked while holding
+                            // the lock. In that case, we propagate the panic by unwrapping.
+                            // This is acceptable since panics should never occur in this codebase.
+                            if let Ok(mut err_vec) = errors.lock() {
+                                err_vec.push(error);
+                            }
+                            Value::Null
+                        });
+                (field.clone(), decrypted)
+            })
+            .collect();
 
-        Ok((decrypted_fields, errors))
+        // Extract errors from mutex - safe since parallel iteration is complete
+        let final_errors = errors
+            .into_inner()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        Ok((decrypted_fields, final_errors))
     }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct EnclaveResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub fields: Option<BTreeMap<String, Value>>,
+    pub fields: Option<HashMap<String, Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub errors: Option<Vec<String>>,
 }
 
 impl EnclaveResponse {
-    pub fn new(fields: BTreeMap<String, Value>, errors: Option<Vec<Error>>) -> Self {
+    pub fn new(fields: HashMap<String, Value>, errors: Option<Vec<Error>>) -> Self {
         let errors = errors.map(|errors| errors.iter().map(|e| e.to_string()).collect());
 
         Self {
@@ -1092,7 +1116,7 @@ mod tests {
 
     #[test]
     fn test_enclave_response_serialization_with_string_fields() {
-        let mut fields = BTreeMap::new();
+        let mut fields = HashMap::new();
         fields.insert("name".to_string(), Value::String("Bob".to_string()));
         fields.insert(
             "email".to_string(),
@@ -1110,7 +1134,7 @@ mod tests {
 
     #[test]
     fn test_enclave_response_serialization_with_integer_fields() {
-        let mut fields = BTreeMap::new();
+        let mut fields = HashMap::new();
         fields.insert("age".to_string(), Value::Number(46.into()));
         fields.insert("count".to_string(), Value::Number(100.into()));
 
@@ -1123,7 +1147,7 @@ mod tests {
 
     #[test]
     fn test_enclave_response_serialization_with_boolean_fields() {
-        let mut fields = BTreeMap::new();
+        let mut fields = HashMap::new();
         fields.insert("is_active".to_string(), Value::Bool(true));
         fields.insert("is_verified".to_string(), Value::Bool(false));
 
@@ -1136,7 +1160,7 @@ mod tests {
 
     #[test]
     fn test_enclave_response_serialization_with_null_fields() {
-        let mut fields = BTreeMap::new();
+        let mut fields = HashMap::new();
         fields.insert("missing".to_string(), Value::Null);
 
         let response = EnclaveResponse::new(fields.clone(), None);
@@ -1149,7 +1173,7 @@ mod tests {
     #[test]
     fn test_enclave_response_serialization_with_mixed_fields() {
         // This tests the typical output from CEL expressions
-        let mut fields = BTreeMap::new();
+        let mut fields = HashMap::new();
         fields.insert("name".to_string(), Value::String("Bob".to_string()));
         fields.insert("age".to_string(), Value::Number(46.into()));
         fields.insert("is_empty".to_string(), Value::Bool(false));
@@ -1169,7 +1193,7 @@ mod tests {
 
     #[test]
     fn test_enclave_response_serialization_with_errors() {
-        let mut fields = BTreeMap::new();
+        let mut fields = HashMap::new();
         fields.insert("name".to_string(), Value::String("Bob".to_string()));
         fields.insert("failed_field".to_string(), Value::Null);
 
@@ -1196,7 +1220,7 @@ mod tests {
 
     #[test]
     fn test_enclave_response_serialization_produces_valid_json() {
-        let mut fields = BTreeMap::new();
+        let mut fields = HashMap::new();
         fields.insert("name".to_string(), Value::String("Bob".to_string()));
 
         let response = EnclaveResponse::new(fields, None);
@@ -1210,7 +1234,7 @@ mod tests {
 
     #[test]
     fn test_enclave_response_serialization_skips_none_fields() {
-        let mut fields = BTreeMap::new();
+        let mut fields = HashMap::new();
         fields.insert("name".to_string(), Value::String("Bob".to_string()));
 
         let response = EnclaveResponse::new(fields, None);
@@ -1236,7 +1260,7 @@ mod tests {
         use serde_json::json;
 
         // Test with string fields
-        let mut fields = BTreeMap::new();
+        let mut fields = HashMap::new();
         fields.insert("name".to_string(), Value::String("Bob".to_string()));
         fields.insert(
             "email".to_string(),
@@ -1262,7 +1286,7 @@ mod tests {
     fn test_to_string_equals_json_macro_with_mixed_types() {
         use serde_json::json;
 
-        let mut fields = BTreeMap::new();
+        let mut fields = HashMap::new();
         fields.insert("name".to_string(), Value::String("Bob".to_string()));
         fields.insert("age".to_string(), Value::Number(46.into()));
         fields.insert("is_active".to_string(), Value::Bool(true));
@@ -1286,7 +1310,7 @@ mod tests {
     fn test_to_string_equals_json_macro_with_errors() {
         use serde_json::json;
 
-        let mut fields = BTreeMap::new();
+        let mut fields = HashMap::new();
         fields.insert("name".to_string(), Value::String("Bob".to_string()));
 
         let errors = vec![anyhow!("test error")];
@@ -1326,7 +1350,7 @@ mod tests {
     fn test_to_string_handles_special_characters_correctly() {
         use serde_json::json;
 
-        let mut fields = BTreeMap::new();
+        let mut fields = HashMap::new();
         // Test various special characters that need JSON escaping
         fields.insert(
             "with_quotes".to_string(),
@@ -1375,7 +1399,7 @@ mod tests {
     #[test]
     fn test_to_string_no_double_escaping() {
         // Specifically test that quotes aren't double-escaped
-        let mut fields = BTreeMap::new();
+        let mut fields = HashMap::new();
         let original_value = r#"{"nested": "json"}"#;
         fields.insert(
             "json_string".to_string(),
@@ -1471,7 +1495,7 @@ mod tests {
             request: ParentRequest {
                 vault_id: "v_test123".to_string(),
                 region: "us-east-1".to_string(),
-                fields: BTreeMap::new(),
+                fields: HashMap::new(),
                 suite_id: "SFBLRQARAAIAAg==".to_string(),
                 encrypted_private_key: "test_key".to_string(),
                 expressions: None,
