@@ -30,6 +30,45 @@ Parameters:
   pInstanceRoleName:
     Type: String
     Description: Instance Role Name
+  pScaleOutConnectionThreshold:
+    Type: Number
+    Default: 1000
+    MinValue: 1
+    Description: Active flow count threshold for scale-out
+  pScaleOutThroughputThreshold:
+    Type: Number
+    Default: 104857600
+    MinValue: 1
+    Description: Processed bytes threshold for scale-out (100MB in bytes)
+  pScaleOutNewFlowThreshold:
+    Type: Number
+    Default: 500
+    MinValue: 1
+    Description: New flow count threshold for scale-out
+  pScaleOutCpuThreshold:
+    Type: Number
+    Default: 70
+    MinValue: 1
+    MaxValue: 100
+    Description: CPU percentage threshold for scale-out
+  pScaleInConnectionThreshold:
+    Type: Number
+    Default: 200
+    MinValue: 0
+    Description: Active flow count threshold for scale-in
+  pScaleInCpuThreshold:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    MaxValue: 100
+    Description: CPU percentage threshold for scale-in
+  pAlarmSnsTopicArn:
+    Type: String
+    Default: ""
+    Description: Optional SNS topic ARN for alarm notifications
+
+Conditions:
+  cHasSnsTopicArn: !Not [!Equals [!Ref pAlarmSnsTopicArn, ""]]
 
 Mappings:
   RegionMap:
@@ -779,6 +818,265 @@ Resources:
         - OldestInstance
         - OldestLaunchTemplate
       VPCZoneIdentifier: !Ref pSubnetIds
+
+  rScaleOutPolicy:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    Properties:
+      AutoScalingGroupName: !Ref rAutoScalingGroup
+      PolicyType: SimpleScaling
+      AdjustmentType: ChangeInCapacity
+      ScalingAdjustment: 1
+      Cooldown: 300
+
+  rHealthyHostScaleOutPolicy:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    Properties:
+      AutoScalingGroupName: !Ref rAutoScalingGroup
+      PolicyType: SimpleScaling
+      AdjustmentType: ChangeInCapacity
+      ScalingAdjustment: 1
+      Cooldown: 300
+
+  rScaleInPolicy:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    Properties:
+      AutoScalingGroupName: !Ref rAutoScalingGroup
+      PolicyType: SimpleScaling
+      AdjustmentType: ChangeInCapacity
+      ScalingAdjustment: -1
+      Cooldown: 600
+
+  rHighConnectionsAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-high-connections"
+      AlarmDescription: Scale out when active TCP connections exceed threshold
+      Namespace: AWS/NetworkELB
+      MetricName: ActiveFlowCount
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt rLoadBalancer.LoadBalancerFullName
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: !Ref pScaleOutConnectionThreshold
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+        - !Ref rScaleOutPolicy
+      OKActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rHighConnectionsAlarm
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rHighThroughputAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-high-throughput"
+      AlarmDescription: Scale out when processed bytes exceed threshold
+      Namespace: AWS/NetworkELB
+      MetricName: ProcessedBytes
+      Dimensions:
+        - Name: TargetGroup
+          Value: !GetAtt rTargetGroup.TargetGroupFullName
+        - Name: LoadBalancer
+          Value: !GetAtt rLoadBalancer.LoadBalancerFullName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: !Ref pScaleOutThroughputThreshold
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+        - !Ref rScaleOutPolicy
+      OKActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rHighThroughputAlarm
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rHighNewFlowsAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-high-new-flows"
+      AlarmDescription: Scale out when new connection rate exceeds threshold
+      Namespace: AWS/NetworkELB
+      MetricName: NewFlowCount
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt rLoadBalancer.LoadBalancerFullName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: !Ref pScaleOutNewFlowThreshold
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+        - !Ref rScaleOutPolicy
+      OKActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rHighNewFlowsAlarm
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rHighCpuAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-high-cpu"
+      AlarmDescription: Scale out when CPU utilization exceeds threshold
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref rAutoScalingGroup
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: !Ref pScaleOutCpuThreshold
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+        - !Ref rScaleOutPolicy
+      OKActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rHighCpuAlarm
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rLowHealthyHostAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-low-healthy-hosts"
+      AlarmDescription: Scale out when healthy host count falls below threshold
+      Namespace: AWS/NetworkELB
+      MetricName: HealthyHostCount
+      Dimensions:
+        - Name: TargetGroup
+          Value: !GetAtt rTargetGroup.TargetGroupFullName
+        - Name: LoadBalancer
+          Value: !GetAtt rLoadBalancer.LoadBalancerFullName
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+        - !Ref rHealthyHostScaleOutPolicy
+      OKActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rLowHealthyHostAlarm
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rLowConnectionsAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-low-connections"
+      AlarmDescription: Low connections alarm for scale-in composite (no direct action)
+      Namespace: AWS/NetworkELB
+      MetricName: ActiveFlowCount
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt rLoadBalancer.LoadBalancerFullName
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 10
+      Threshold: !Ref pScaleInConnectionThreshold
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rLowConnectionsAlarm
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rLowCpuAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-low-cpu"
+      AlarmDescription: Low CPU alarm for scale-in composite (no direct action)
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref rAutoScalingGroup
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 10
+      Threshold: !Ref pScaleInCpuThreshold
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rLowCpuAlarm
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
+
+  rScaleInCompositeAlarm:
+    Type: "AWS::CloudWatch::CompositeAlarm"
+    Properties:
+      AlarmName: !Sub "${AWS::StackName}-scale-in-composite"
+      AlarmDescription: Scale in when both connections and CPU are low
+      AlarmRule: !Sub "ALARM(${rLowConnectionsAlarm}) AND ALARM(${rLowCpuAlarm})"
+      AlarmActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+        - !Ref rScaleInPolicy
+      OKActions:
+        - !If [cHasSnsTopicArn, !Ref pAlarmSnsTopicArn, !Ref "AWS::NoValue"]
+      Tags:
+        - Key: "aws-cloudformation:stack-name"
+          Value: !Ref "AWS::StackName"
+        - Key: "aws-cloudformation:stack-id"
+          Value: !Ref "AWS::StackId"
+        - Key: "aws-cloudformation:logical-id"
+          Value: rScaleInCompositeAlarm
+        - Key: AppManagerCFNStackKey
+          Value: !Ref "AWS::StackName"
 
   rLoadBalancer:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
