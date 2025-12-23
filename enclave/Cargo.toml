@@ -12,9 +12,12 @@ path = "src/lib.rs"
 name = "enclave-vault"
 path = "src/main.rs"
 
-# Inherit clippy lints from workspace for no-panic Rust hardening
-[lints]
-workspace = true
+# Clippy lints for no-panic Rust hardening
+# These help catch panic-prone patterns at compile time
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+indexing_slicing = "warn"
 
 [dependencies]
 anyhow = { version = "=1.0.100", default-features = false }
