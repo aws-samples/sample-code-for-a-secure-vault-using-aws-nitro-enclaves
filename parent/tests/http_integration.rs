@@ -6,6 +6,8 @@
 //! These tests use `axum-test` to test the full HTTP request/response cycle
 //! through the Axum router with all middleware applied.
 
+#![allow(clippy::unwrap_used, clippy::indexing_slicing)]
+
 use std::sync::Arc;
 
 use axum::body::Bytes;
