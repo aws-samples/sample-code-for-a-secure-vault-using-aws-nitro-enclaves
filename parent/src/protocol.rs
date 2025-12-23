@@ -127,6 +127,7 @@ pub fn recv_message(stream: &mut VsockStream) -> Result<Vec<u8>> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

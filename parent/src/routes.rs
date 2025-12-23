@@ -181,6 +181,7 @@ pub async fn decrypt(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
     use axum::body::to_bytes;
