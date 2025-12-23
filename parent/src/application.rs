@@ -103,6 +103,8 @@ impl Application {
 /// Waits for a shutdown signal (Ctrl+C or SIGTERM).
 async fn shutdown_signal() {
     let ctrl_c = async {
+        // Signal handler installation failure is unrecoverable - expect is appropriate here
+        #[allow(clippy::expect_used)]
         tokio::signal::ctrl_c()
             .await
             .expect("failed to install Ctrl+C handler");
@@ -110,6 +112,8 @@ async fn shutdown_signal() {
 
     #[cfg(unix)]
     let terminate = async {
+        // Signal handler installation failure is unrecoverable - expect is appropriate here
+        #[allow(clippy::expect_used)]
         tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
             .expect("failed to install signal handler")
             .recv()
