@@ -1,15 +1,17 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
+use std::io::{Read, Write};
+use std::thread;
+
 use anyhow::{Error, Result, anyhow};
 use enclave_vault::{
     constants::ENCLAVE_PORT,
     expressions::execute_expressions,
     models::{EnclaveRequest, EnclaveResponse},
-    protocol::{recv_message_async, send_message_async},
+    protocol::{recv_message, send_message},
 };
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_vsock::{VsockAddr, VsockListener};
+use vsock::VsockListener;
 
 // Avoid musl's default allocator due to terrible performance
 #[cfg(target_env = "musl")]
@@ -24,7 +26,7 @@ fn parse_payload(payload_buffer: &[u8]) -> Result<EnclaveRequest> {
 }
 
 #[inline]
-async fn send_error<W: AsyncWrite + Unpin>(mut stream: W, err: Error) -> Result<()> {
+fn send_error<W: Write>(mut stream: W, err: Error) -> Result<()> {
     println!("[enclave error] {err:?}");
 
     let response = EnclaveResponse::error(err);
@@ -32,31 +34,30 @@ async fn send_error<W: AsyncWrite + Unpin>(mut stream: W, err: Error) -> Result<
     let payload: String = serde_json::to_string(&response)
         .map_err(|err| anyhow!("failed to serialize error response: {err:?}"))?;
 
-    if let Err(err) = send_message_async(&mut stream, &payload).await {
+    if let Err(err) = send_message(&mut stream, &payload) {
         println!("[enclave error] failed to send error: {err:?}");
     }
 
     Ok(())
 }
 
-async fn handle_client<S: AsyncRead + AsyncWrite + Unpin>(mut stream: S) -> Result<()> {
+fn handle_client<S: Read + Write>(mut stream: S) -> Result<()> {
     println!("[enclave] handling client");
 
-    let payload: EnclaveRequest = match recv_message_async(&mut stream)
-        .await
+    let payload: EnclaveRequest = match recv_message(&mut stream)
         .map_err(|err| anyhow!("failed to receive message: {err:?}"))
     {
         Ok(payload_buffer) => match parse_payload(&payload_buffer) {
             Ok(payload) => payload,
-            Err(err) => return send_error(stream, err).await,
+            Err(err) => return send_error(stream, err),
         },
-        Err(err) => return send_error(stream, err).await,
+        Err(err) => return send_error(stream, err),
     };
 
     // Decrypt the individual field values (uses rayon for parallelization internally)
     let (decrypted_fields, errors) = match payload.decrypt_fields() {
         Ok(result) => result,
-        Err(err) => return send_error(stream, err).await,
+        Err(err) => return send_error(stream, err),
     };
 
     let final_fields = match payload.request.expressions {
@@ -77,11 +78,10 @@ async fn handle_client<S: AsyncRead + AsyncWrite + Unpin>(mut stream: S) -> Resu
 
     println!("[enclave] sending response to parent");
 
-    if let Err(err) = send_message_async(&mut stream, &payload)
-        .await
+    if let Err(err) = send_message(&mut stream, &payload)
         .map_err(|err| anyhow!("Failed to send message: {err:?}"))
     {
-        return send_error(stream, err).await;
+        return send_error(stream, err);
     }
 
     println!("[enclave] finished client");
@@ -89,12 +89,10 @@ async fn handle_client<S: AsyncRead + AsyncWrite + Unpin>(mut stream: S) -> Resu
     Ok(())
 }
 
-#[tokio::main(flavor = "multi_thread")]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     println!("[enclave] init");
 
-    let addr = VsockAddr::new(libc::VMADDR_CID_ANY, ENCLAVE_PORT);
-    let listener = match VsockListener::bind(addr) {
+    let listener = match VsockListener::bind_with_cid_port(libc::VMADDR_CID_ANY, ENCLAVE_PORT) {
         Ok(l) => l,
         Err(e) => {
             eprintln!(
@@ -107,12 +105,12 @@ async fn main() -> Result<()> {
 
     println!("[enclave] listening on port {ENCLAVE_PORT}");
 
-    loop {
-        match listener.accept().await {
-            Ok((stream, _addr)) => {
-                // Spawn a new task to handle each client concurrently
-                tokio::spawn(async move {
-                    if let Err(err) = handle_client(stream).await {
+    for conn in listener.incoming() {
+        match conn {
+            Ok(stream) => {
+                // Spawn a new thread to handle each client concurrently
+                thread::spawn(move || {
+                    if let Err(err) = handle_client(stream) {
                         println!("[enclave error] {:?}", err);
                     }
                 });
@@ -123,4 +121,6 @@ async fn main() -> Result<()> {
             }
         }
     }
+
+    Ok(())
 }

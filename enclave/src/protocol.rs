@@ -28,7 +28,6 @@ use std::{
 };
 
 use anyhow::{Result, anyhow, bail};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use vsock::VsockStream;
 
 use crate::constants::MAX_MESSAGE_SIZE;
@@ -131,94 +130,6 @@ pub fn send_vsock_message(stream: &mut VsockStream, msg: &str) -> Result<()> {
 /// Convenience wrapper around [`recv_message`] for vsock communication.
 pub fn recv_vsock_message(stream: &mut VsockStream) -> Result<Vec<u8>> {
     recv_message(stream)
-}
-
-/// Sends a length-prefixed message asynchronously.
-///
-/// # Arguments
-///
-/// * `writer` - Any type implementing `AsyncWrite + Unpin`
-/// * `msg` - The message string to send
-///
-/// # Returns
-///
-/// Returns `Ok(())` on success, or an error if writing fails.
-#[inline]
-pub async fn send_message_async<W: AsyncWriteExt + Unpin>(writer: &mut W, msg: &str) -> Result<()> {
-    // write message length
-    let payload_len: u64 = msg
-        .len()
-        .try_into()
-        .map_err(|err| anyhow!("failed to compute message length: {:?}", err))?;
-    let header_buf = payload_len.to_le_bytes();
-    writer
-        .write_all(&header_buf)
-        .await
-        .map_err(|err| anyhow!("failed to write message header: {:?}", err))?;
-
-    // write message body
-    writer
-        .write_all(msg.as_bytes())
-        .await
-        .map_err(|err| anyhow!("failed to write message body: {:?}", err))?;
-
-    Ok(())
-}
-
-/// Receives a length-prefixed message asynchronously.
-///
-/// # Arguments
-///
-/// * `reader` - Any type implementing `AsyncRead + Unpin`
-///
-/// # Returns
-///
-/// Returns the message payload as a byte vector, or an error if reading fails
-/// or the message size exceeds `MAX_MESSAGE_SIZE`.
-///
-/// # Security
-///
-/// Validates message size before allocation to prevent memory exhaustion attacks.
-/// Messages larger than `MAX_MESSAGE_SIZE` (10 MB) are rejected.
-#[inline]
-pub async fn recv_message_async<R: AsyncReadExt + Unpin>(reader: &mut R) -> Result<Vec<u8>> {
-    // Buffer to hold the size of the incoming data
-    let mut size_buf = [0; size_of::<u64>()];
-    reader
-        .read_exact(&mut size_buf)
-        .await
-        .map_err(|err| anyhow!("failed to read message header: {:?}", err))?;
-
-    // Convert the size buffer to u64 using std method
-    let size = u64::from_le_bytes(size_buf);
-
-    // Validate message size before allocation to prevent memory exhaustion DoS
-    if size > MAX_MESSAGE_SIZE {
-        bail!(
-            "message size {} exceeds maximum allowed size {}",
-            size,
-            MAX_MESSAGE_SIZE
-        );
-    }
-
-    // Safe conversion from u64 to usize (validated above, MAX_MESSAGE_SIZE fits in usize)
-    let size_usize: usize = size
-        .try_into()
-        .map_err(|_| anyhow!("message size {} too large for platform", size))?;
-
-    // Allocate buffer with error handling to prevent panic on allocation failure
-    let mut payload_buffer = Vec::new();
-    payload_buffer
-        .try_reserve(size_usize)
-        .map_err(|_| anyhow!("failed to allocate {} bytes for message", size_usize))?;
-    payload_buffer.resize(size_usize, 0);
-
-    reader
-        .read_exact(&mut payload_buffer)
-        .await
-        .map_err(|err| anyhow!("failed to read message body: {:?}", err))?;
-
-    Ok(payload_buffer)
 }
 
 #[cfg(test)]

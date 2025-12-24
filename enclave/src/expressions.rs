@@ -93,7 +93,7 @@ pub fn execute_expressions(
 mod tests {
     use super::*;
     use proptest::prelude::*;
-    use std::collections::{BTreeMap, HashMap};
+    use std::collections::HashMap;
 
     // **Feature: enclave-improvements, Property 5: Expression failure fallback**
     // **Validates: Requirements 8.2**
