@@ -3,6 +3,11 @@
 
 pub const ENCLAVE_PORT: u32 = 5050;
 
+/// Maximum concurrent connections to prevent resource exhaustion DoS attacks.
+/// Each connection spawns a thread (~8KB stack minimum), so this limits memory usage.
+/// With 32 connections and 10MB max message size, worst case is ~320MB memory.
+pub const MAX_CONCURRENT_CONNECTIONS: usize = 32;
+
 /// Maximum allowed message size (10 MB) to prevent memory exhaustion DoS attacks
 pub const MAX_MESSAGE_SIZE: u64 = 10 * 1024 * 1024;
 

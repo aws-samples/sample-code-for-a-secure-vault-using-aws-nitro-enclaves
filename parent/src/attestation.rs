@@ -31,6 +31,7 @@ use p384::ecdsa::{Signature, VerifyingKey, signature::Verifier};
 use x509_cert::der::Decode;
 
 use crate::models::{DocumentInfo, VerificationResult};
+use crate::nitro_root_cert;
 
 /// Minimum nonce length in bytes (128 bits) per Trail of Bits recommendations.
 pub const MIN_NONCE_BYTES: usize = 16;
@@ -277,26 +278,152 @@ fn parse_attestation_payload(payload: &[u8]) -> Result<ParsedAttestation> {
 }
 
 /// Validate the certificate chain from enclave cert to AWS Nitro root.
+///
+/// Validates:
+/// 1. All certificates parse correctly
+/// 2. The chain terminates at the AWS Nitro root certificate
+/// 3. Each certificate's signature is valid (signed by the next cert in chain)
+/// 4. All certificates are within their validity period
 fn validate_certificate_chain(parsed: &ParsedAttestation) -> Result<bool> {
-    // Parse the enclave certificate
-    let _enclave_cert = x509_cert::Certificate::from_der(&parsed.certificate)
-        .map_err(|e| anyhow!("failed to parse enclave certificate: {:?}", e))?;
-
-    // Parse intermediate certificates
-    for (i, cert_der) in parsed.cabundle.iter().enumerate() {
-        let _cert = x509_cert::Certificate::from_der(cert_der)
-            .map_err(|e| anyhow!("failed to parse certificate {}: {:?}", i, e))?;
+    // Verify the embedded root certificate hash first
+    if !nitro_root_cert::verify_root_cert_hash() {
+        bail!("embedded Nitro root certificate hash verification failed");
     }
 
-    // TODO: Full certificate chain validation:
-    // 1. Verify each certificate signature
-    // 2. Check temporal validity (not expired)
-    // 3. Check key usage constraints
-    // 4. Verify chain terminates at AWS Nitro root
+    // Parse the AWS Nitro root certificate
+    let root_der = nitro_root_cert::get_root_cert_der()
+        .map_err(|e| anyhow!("failed to get root certificate: {}", e))?;
+    let root_cert = x509_cert::Certificate::from_der(&root_der)
+        .map_err(|e| anyhow!("failed to parse root certificate: {:?}", e))?;
 
-    // For now, we verify the certificates parse correctly
-    // Full chain validation requires additional implementation
+    // Parse the enclave certificate
+    let enclave_cert = x509_cert::Certificate::from_der(&parsed.certificate)
+        .map_err(|e| anyhow!("failed to parse enclave certificate: {:?}", e))?;
+
+    // Parse all intermediate certificates
+    let mut intermediates = Vec::with_capacity(parsed.cabundle.len());
+    for (i, cert_der) in parsed.cabundle.iter().enumerate() {
+        let cert = x509_cert::Certificate::from_der(cert_der)
+            .map_err(|e| anyhow!("failed to parse intermediate certificate {}: {:?}", i, e))?;
+        intermediates.push(cert);
+    }
+
+    // Build the certificate chain: enclave -> intermediates -> root
+    // The cabundle is ordered from leaf to root, so we need to verify:
+    // enclave signed by intermediates[0], intermediates[i] signed by intermediates[i+1],
+    // and the last intermediate signed by root
+
+    // Get current time for validity check
+    let now_secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .context("system time error")?
+        .as_secs();
+
+    // Verify enclave certificate validity period
+    if !is_cert_valid_at(&enclave_cert, now_secs) {
+        return Ok(false);
+    }
+
+    // If there are intermediates, verify the chain
+    if let Some(first_intermediate) = intermediates.first() {
+        // Verify enclave cert is signed by first intermediate
+        if !verify_cert_signature(&enclave_cert, first_intermediate)? {
+            return Ok(false);
+        }
+
+        // Verify each intermediate (except last) is signed by next using windows
+        for pair in intermediates.windows(2) {
+            let (current, next) = match pair {
+                [c, n] => (c, n),
+                _ => continue, // windows(2) always returns pairs
+            };
+            if !is_cert_valid_at(current, now_secs) {
+                return Ok(false);
+            }
+            if !verify_cert_signature(current, next)? {
+                return Ok(false);
+            }
+        }
+
+        // Verify last intermediate validity and signature by root
+        if let Some(last) = intermediates.last() {
+            if !is_cert_valid_at(last, now_secs) {
+                return Ok(false);
+            }
+            if !verify_cert_signature(last, &root_cert)? {
+                return Ok(false);
+            }
+        }
+    } else {
+        // No intermediates: enclave cert should be signed by root directly
+        if !verify_cert_signature(&enclave_cert, &root_cert)? {
+            return Ok(false);
+        }
+    }
+
     Ok(true)
+}
+
+/// Check if a certificate is valid at the given time (seconds since Unix epoch).
+fn is_cert_valid_at(cert: &x509_cert::Certificate, now_secs: u64) -> bool {
+    let validity = &cert.tbs_certificate.validity;
+
+    // Convert x509 times to Unix timestamps
+    let not_before = match &validity.not_before {
+        x509_cert::time::Time::UtcTime(t) => t.to_unix_duration().as_secs(),
+        x509_cert::time::Time::GeneralTime(t) => t.to_unix_duration().as_secs(),
+    };
+
+    let not_after = match &validity.not_after {
+        x509_cert::time::Time::UtcTime(t) => t.to_unix_duration().as_secs(),
+        x509_cert::time::Time::GeneralTime(t) => t.to_unix_duration().as_secs(),
+    };
+
+    now_secs >= not_before && now_secs <= not_after
+}
+
+/// Verify that a certificate was signed by the issuer certificate.
+///
+/// This extracts the public key from the issuer and verifies the subject's signature.
+fn verify_cert_signature(
+    subject: &x509_cert::Certificate,
+    issuer: &x509_cert::Certificate,
+) -> Result<bool> {
+    // Get the issuer's public key
+    let issuer_pk_info = &issuer.tbs_certificate.subject_public_key_info;
+    let issuer_pk_bytes = issuer_pk_info
+        .subject_public_key
+        .as_bytes()
+        .ok_or_else(|| anyhow!("issuer certificate has no public key bytes"))?;
+
+    // Parse as P-384 public key (AWS Nitro uses ECDSA P-384)
+    let verifying_key = match VerifyingKey::from_sec1_bytes(issuer_pk_bytes) {
+        Ok(key) => key,
+        Err(_) => return Ok(false), // Key format mismatch
+    };
+
+    // Get the signature from the subject certificate
+    let signature_bytes = subject
+        .signature
+        .as_bytes()
+        .ok_or_else(|| anyhow!("subject certificate has no signature bytes"))?;
+
+    // Parse the signature (DER encoded for X.509)
+    let signature = match Signature::from_der(signature_bytes) {
+        Ok(sig) => sig,
+        Err(_) => return Ok(false), // Invalid signature format
+    };
+
+    // The TBS (to-be-signed) certificate is what was signed
+    // We need to re-encode it to DER for verification
+    use x509_cert::der::Encode;
+    let tbs_der = subject
+        .tbs_certificate
+        .to_der()
+        .map_err(|e| anyhow!("failed to encode TBS certificate: {:?}", e))?;
+
+    // Verify the signature
+    Ok(verifying_key.verify(&tbs_der, &signature).is_ok())
 }
 
 /// Reconstruct attestation payload with expected PCRs and verify signature.

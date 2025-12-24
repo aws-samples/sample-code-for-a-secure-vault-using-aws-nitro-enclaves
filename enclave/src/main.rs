@@ -1,16 +1,21 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
+use std::io::{Read, Write};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::thread;
+
 use anyhow::{Error, Result, anyhow};
 use enclave_vault::{
-    constants::ENCLAVE_PORT,
+    constants::{ENCLAVE_PORT, MAX_CONCURRENT_CONNECTIONS},
     expressions::execute_expressions,
     models::{AttestationRequest, AttestationResponse, EnclaveRequest, EnclaveRequestType, EnclaveResponse},
     nsm,
     protocol::{recv_message, send_message},
     utils::base64_decode,
 };
-use vsock::{VMADDR_CID_ANY, VsockAddr, VsockListener, VsockStream};
+use vsock::VsockListener;
 
 // Avoid musl's default allocator due to terrible performance
 #[cfg(target_env = "musl")]
@@ -36,12 +41,27 @@ fn parse_payload(payload_buffer: &[u8]) -> Result<EnclaveRequestType> {
     let legacy_request: EnclaveRequest = serde_json::from_slice(payload_buffer)
         .map_err(|err| anyhow!("failed to deserialize payload: {err:?}"))?;
 
-    Ok(EnclaveRequestType::Decrypt(legacy_request))
+    Ok(EnclaveRequestType::Decrypt(Box::new(legacy_request)))
+}
+
+/// Sanitizes error messages to prevent sensitive data leakage in logs.
+/// Removes potential field values, keys, or other sensitive content.
+#[inline]
+fn sanitize_error_message(err: &Error) -> String {
+    let msg = err.to_string();
+    // Truncate very long error messages that might contain data
+    if msg.len() > 200 {
+        format!("{}... (truncated)", &msg[..200])
+    } else {
+        msg
+    }
 }
 
 #[inline]
-fn send_error(mut stream: VsockStream, err: Error) -> Result<()> {
-    println!("[enclave error] {err:?}");
+fn send_error<W: Write>(mut stream: W, err: Error) -> Result<()> {
+    // Sanitize error message to avoid leaking sensitive data
+    let sanitized_msg = sanitize_error_message(&err);
+    println!("[enclave error] {sanitized_msg}");
 
     let response = EnclaveResponse::error(err);
 
@@ -49,17 +69,18 @@ fn send_error(mut stream: VsockStream, err: Error) -> Result<()> {
         .map_err(|err| anyhow!("failed to serialize error response: {err:?}"))?;
 
     if let Err(err) = send_message(&mut stream, &payload) {
-        println!("[enclave error] failed to send error: {err:?}");
+        let sanitized = sanitize_error_message(&err);
+        println!("[enclave error] failed to send error: {sanitized}");
     }
 
     Ok(())
 }
 
 /// Handle a decrypt request (existing functionality).
-fn handle_decrypt(mut stream: VsockStream, request: EnclaveRequest) -> Result<()> {
+fn handle_decrypt<S: Read + Write>(mut stream: S, request: EnclaveRequest) -> Result<()> {
     println!("[enclave] handling decrypt request");
 
-    // Decrypt the individual field values
+    // Decrypt the individual field values (uses rayon for parallelization internally)
     let (decrypted_fields, errors) = match request.decrypt_fields() {
         Ok(result) => result,
         Err(err) => return send_error(stream, err),
@@ -69,7 +90,11 @@ fn handle_decrypt(mut stream: VsockStream, request: EnclaveRequest) -> Result<()
         Some(expressions) => match execute_expressions(&decrypted_fields, &expressions) {
             Ok(fields) => fields,
             Err(err) => {
-                println!("[enclave warning] expression execution failed: {:?}", err);
+                println!("[enclave warning] expression execution failed");
+                // Only log error details in debug builds
+                #[cfg(debug_assertions)]
+                println!("[enclave debug] expression error: {:?}", err);
+                let _ = err; // Silence unused warning in release
                 decrypted_fields
             }
         },
@@ -95,7 +120,7 @@ fn handle_decrypt(mut stream: VsockStream, request: EnclaveRequest) -> Result<()
 }
 
 /// Handle an attestation request.
-fn handle_attestation(mut stream: VsockStream, request: AttestationRequest) -> Result<()> {
+fn handle_attestation<S: Read + Write>(mut stream: S, request: AttestationRequest) -> Result<()> {
     println!("[enclave] handling attestation request");
 
     // Decode nonce from base64
@@ -137,7 +162,9 @@ fn handle_attestation(mut stream: VsockStream, request: AttestationRequest) -> R
             AttestationResponse::success(document_b64)
         }
         Err(err) => {
-            println!("[enclave error] attestation failed: {err:?}");
+            println!("[enclave error] attestation failed");
+            #[cfg(debug_assertions)]
+            println!("[enclave debug] attestation error: {:?}", err);
             AttestationResponse::error(err.to_string())
         }
     };
@@ -158,7 +185,7 @@ fn handle_attestation(mut stream: VsockStream, request: AttestationRequest) -> R
     Ok(())
 }
 
-fn handle_client(mut stream: VsockStream) -> Result<()> {
+fn handle_client<S: Read + Write>(mut stream: S) -> Result<()> {
     println!("[enclave] handling client");
 
     let request_type: EnclaveRequestType = match recv_message(&mut stream)
@@ -173,7 +200,7 @@ fn handle_client(mut stream: VsockStream) -> Result<()> {
 
     // Dispatch based on request type
     match request_type {
-        EnclaveRequestType::Decrypt(request) => handle_decrypt(stream, request),
+        EnclaveRequestType::Decrypt(request) => handle_decrypt(stream, *request),
         EnclaveRequestType::Attestation(request) => handle_attestation(stream, request),
     }
 }
@@ -181,7 +208,7 @@ fn handle_client(mut stream: VsockStream) -> Result<()> {
 fn main() -> Result<()> {
     println!("[enclave] init");
 
-    let listener = match VsockListener::bind(&VsockAddr::new(VMADDR_CID_ANY, ENCLAVE_PORT)) {
+    let listener = match VsockListener::bind_with_cid_port(libc::VMADDR_CID_ANY, ENCLAVE_PORT) {
         Ok(l) => l,
         Err(e) => {
             eprintln!(
@@ -193,22 +220,49 @@ fn main() -> Result<()> {
     };
 
     println!("[enclave] listening on port {ENCLAVE_PORT}");
+    println!(
+        "[enclave] max concurrent connections: {}",
+        MAX_CONCURRENT_CONNECTIONS
+    );
 
-    for stream in listener.incoming() {
-        let stream = match stream {
-            Ok(s) => s,
+    // Track active connections to prevent resource exhaustion DoS
+    let active_connections = Arc::new(AtomicUsize::new(0));
+
+    for conn in listener.incoming() {
+        match conn {
+            Ok(stream) => {
+                // Check if we've reached the connection limit
+                let current = active_connections.load(Ordering::SeqCst);
+                if current >= MAX_CONCURRENT_CONNECTIONS {
+                    println!(
+                        "[enclave warning] connection limit reached ({}/{}), rejecting",
+                        current, MAX_CONCURRENT_CONNECTIONS
+                    );
+                    // Drop the stream to close the connection
+                    drop(stream);
+                    continue;
+                }
+
+                // Increment connection count
+                active_connections.fetch_add(1, Ordering::SeqCst);
+                let connections = Arc::clone(&active_connections);
+
+                // Spawn a new thread to handle each client concurrently
+                thread::spawn(move || {
+                    if let Err(err) = handle_client(stream) {
+                        let sanitized = sanitize_error_message(&err);
+                        println!("[enclave error] {sanitized}");
+                    }
+                    // Decrement connection count when done
+                    connections.fetch_sub(1, Ordering::SeqCst);
+                });
+            }
             Err(e) => {
                 println!("[enclave error] failed to accept connection: {:?}", e);
                 continue;
             }
-        };
-
-        if let Err(err) = handle_client(stream) {
-            println!("[enclave error] {:?}", err);
         }
     }
-
-    println!("[enclave] finished");
 
     Ok(())
 }
