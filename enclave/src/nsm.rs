@@ -15,19 +15,9 @@
 
 use anyhow::{Result, anyhow, bail};
 
-/// Minimum nonce length in bytes (128 bits) per Trail of Bits recommendations.
-///
-/// Reference: <https://blog.trailofbits.com/2024/09/24/notes-on-aws-nitro-enclaves-attack-surface/>
-pub const MIN_NONCE_LENGTH: usize = 16;
-
-/// Maximum nonce length in bytes (NSM limit)
-pub const MAX_NONCE_LENGTH: usize = 512;
-
-/// Maximum user_data length in bytes (NSM limit)
-pub const MAX_USER_DATA_LENGTH: usize = 512;
-
-/// Maximum public_key length in bytes (NSM limit)
-pub const MAX_PUBLIC_KEY_LENGTH: usize = 1024;
+use crate::constants::{MAX_NONCE_LENGTH, MIN_NONCE_LENGTH};
+#[cfg(target_env = "musl")]
+use crate::constants::{MAX_PUBLIC_KEY_LENGTH, MAX_USER_DATA_LENGTH};
 
 /// Generate an attestation document from the Nitro Secure Module.
 ///

@@ -34,8 +34,8 @@ vsock = { version = "=0.5.2", default-features = false }
 zeroize = { version = "=1.8.2", default-features = false, features = ["zeroize_derive"] }
 
 [target.'cfg(target_env = "musl")'.dependencies]
-mimalloc = { version = "=0.1.48", default-features = false, features = ["secure"] }
 aws-nitro-enclaves-nsm-api = { version = "=0.4.0", default-features = false }
+mimalloc = { version = "=0.1.48", default-features = false, features = ["secure"] }
 
 [dev-dependencies]
 proptest = { version = "=1.9.0", default-features = false, features = ["std"] }
