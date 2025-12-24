@@ -409,19 +409,25 @@ fn verify_timestamp(timestamp_ms: u64, max_age_ms: u64) -> Result<bool> {
 }
 
 /// Parse expected PCRs from hex strings to bytes.
+///
+/// Keys should be numeric strings ("0", "1", "2", etc.) matching the
+/// validation in models.rs.
 fn parse_expected_pcrs(expected: &BTreeMap<String, String>) -> Result<BTreeMap<u8, Vec<u8>>> {
     let mut result = BTreeMap::new();
 
     for (key, hex_value) in expected {
+        // Keys are numeric strings (e.g., "0", "1", "2") per models.rs validation
         let index: u8 = key
-            .strip_prefix("PCR")
-            .ok_or_else(|| anyhow!("invalid PCR key: {} (expected PCR0, PCR1, etc.)", key))?
             .parse()
-            .map_err(|_| anyhow!("invalid PCR index: {}", key))?;
+            .map_err(|_| anyhow!("invalid PCR index: {} (expected numeric string)", key))?;
+
+        if index > 23 {
+            bail!("PCR index {} out of range (0-23)", index);
+        }
 
         let bytes = data_encoding::HEXLOWER_PERMISSIVE
             .decode(hex_value.as_bytes())
-            .map_err(|_| anyhow!("invalid hex for {}", key))?;
+            .map_err(|_| anyhow!("invalid hex for PCR{}", index))?;
 
         if bytes.len() != 48 {
             bail!(
@@ -452,8 +458,8 @@ mod tests {
     fn test_parse_expected_pcrs_valid() {
         let mut expected = BTreeMap::new();
         expected.insert(
-            "PCR0".to_string(),
-            "0".repeat(96), // 48 bytes as hex
+            "0".to_string(), // Numeric key format
+            "0".repeat(96),  // 48 bytes as hex
         );
 
         let result = parse_expected_pcrs(&expected);
@@ -462,6 +468,23 @@ mod tests {
         let parsed = result.unwrap();
         assert_eq!(parsed.len(), 1);
         assert!(parsed.contains_key(&0));
+    }
+
+    #[test]
+    fn test_parse_expected_pcrs_multiple() {
+        let mut expected = BTreeMap::new();
+        expected.insert("0".to_string(), "0".repeat(96));
+        expected.insert("1".to_string(), "a".repeat(96));
+        expected.insert("2".to_string(), "b".repeat(96));
+
+        let result = parse_expected_pcrs(&expected);
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+        assert_eq!(parsed.len(), 3);
+        assert!(parsed.contains_key(&0));
+        assert!(parsed.contains_key(&1));
+        assert!(parsed.contains_key(&2));
     }
 
     #[test]
@@ -474,9 +497,19 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_expected_pcrs_out_of_range() {
+        let mut expected = BTreeMap::new();
+        expected.insert("24".to_string(), "0".repeat(96)); // Out of range (max is 23)
+
+        let result = parse_expected_pcrs(&expected);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("out of range"));
+    }
+
+    #[test]
     fn test_parse_expected_pcrs_wrong_length() {
         let mut expected = BTreeMap::new();
-        expected.insert("PCR0".to_string(), "0".repeat(64)); // Wrong length
+        expected.insert("0".to_string(), "0".repeat(64)); // Wrong length (should be 96)
 
         let result = parse_expected_pcrs(&expected);
         assert!(result.is_err());
