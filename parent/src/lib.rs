@@ -52,11 +52,13 @@
 //! - 30-second request timeout prevents resource exhaustion
 
 pub mod application;
+pub mod attestation;
 pub mod configuration;
 pub mod constants;
 pub mod enclaves;
 pub mod errors;
 pub mod imds;
 pub mod models;
+pub mod nitro_root_cert;
 pub mod protocol;
 pub mod routes;

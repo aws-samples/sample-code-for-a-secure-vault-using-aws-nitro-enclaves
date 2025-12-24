@@ -61,6 +61,14 @@ pub enum AppError {
     /// Error returned when application configuration is invalid.
     #[error("configuration error: {0}")]
     ConfigError(String),
+
+    /// Error returned from the enclave during processing.
+    #[error("enclave error: {0}")]
+    EnclaveError(String),
+
+    /// Error returned when attestation verification fails.
+    #[error("attestation error: {0}")]
+    AttestationError(String),
 }
 
 /// Converts an [`AppError`] into an HTTP response.
@@ -98,6 +106,22 @@ impl IntoResponse for AppError {
                     msg
                 };
                 (StatusCode::INTERNAL_SERVER_ERROR, message)
+            }
+            Self::EnclaveError(msg) => {
+                let message = if msg.is_empty() {
+                    "Enclave error".to_string()
+                } else {
+                    msg
+                };
+                (StatusCode::INTERNAL_SERVER_ERROR, message)
+            }
+            Self::AttestationError(msg) => {
+                let message = if msg.is_empty() {
+                    "Attestation error".to_string()
+                } else {
+                    msg
+                };
+                (StatusCode::BAD_REQUEST, message)
             }
         };
 
@@ -169,6 +193,8 @@ mod tests {
             Just(AppError::InternalServerError),
             any::<String>().prop_map(AppError::ValidationError),
             any::<String>().prop_map(AppError::ConfigError),
+            any::<String>().prop_map(AppError::EnclaveError),
+            any::<String>().prop_map(AppError::AttestationError),
         ]
     }
 
@@ -190,6 +216,8 @@ mod tests {
                 AppError::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
                 AppError::ValidationError(_) => StatusCode::BAD_REQUEST,
                 AppError::ConfigError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                AppError::EnclaveError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                AppError::AttestationError(_) => StatusCode::BAD_REQUEST,
             };
 
             // Convert error to response

@@ -8,5 +8,6 @@ pub mod functions;
 pub mod hpke;
 pub mod kms;
 pub mod models;
+pub mod nsm;
 pub mod protocol;
 pub mod utils;

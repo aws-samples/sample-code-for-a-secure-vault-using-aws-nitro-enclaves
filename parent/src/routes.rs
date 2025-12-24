@@ -10,6 +10,7 @@
 //! | GET | `/health` | [`health`] | Health check endpoint |
 //! | GET | `/enclaves` | [`get_enclaves`] | List running enclaves |
 //! | POST | `/decrypt` | [`decrypt`] | Decrypt vault fields |
+//! | POST | `/verify` | [`verify`] | Verify enclave attestation |
 //!
 //! Additional endpoints (currently disabled):
 //! - POST `/enclaves` - Launch a new enclave
@@ -20,9 +21,11 @@ use std::sync::Arc;
 use crate::application::AppState;
 use crate::constants;
 use crate::errors::AppError;
+use crate::attestation::verify_attestation;
 use crate::models::{
-    Credential, EnclaveDescribeInfo, EnclaveRequest, EnclaveResponse, EnclaveRunInfo,
-    ParentRequest, ParentResponse,
+    Credential, DocumentInfo, EnclaveDescribeInfo, EnclaveRequest, EnclaveResponse,
+    EnclaveRunInfo, ParentRequest, ParentResponse, VerificationResult, VerifyRequest,
+    VerifyResponse,
 };
 
 use axum::Json;
@@ -176,6 +179,135 @@ pub async fn decrypt(
     let response = ParentResponse {
         fields: response.fields.unwrap_or_default(),
         errors: response.errors,
+    };
+
+    Ok(Json(response))
+}
+
+/// Verifies that the application is running on a valid Nitro Enclave.
+///
+/// This endpoint requests an attestation document from a running enclave,
+/// verifies it using the Trail of Bits recommended reconstruct-verify approach,
+/// and returns both the raw attestation document and the verification result.
+///
+/// # Request Flow
+///
+/// 1. Validate the incoming [`VerifyRequest`]
+/// 2. Check for available enclaves
+/// 3. Select a random available enclave for load balancing
+/// 4. Request attestation document from the enclave
+/// 5. Verify the attestation using reconstruct-verify:
+///    - Parse COSE Sign1 structure
+///    - Validate certificate chain to AWS Nitro root
+///    - Reconstruct payload with expected PCRs and verify signature
+///    - Validate nonce matches
+///    - Validate timestamp freshness
+/// 6. Return both raw attestation document and verification result
+///
+/// # Security Notes
+///
+/// - Nonce must be at least 16 bytes (128 bits) per Trail of Bits recommendations
+/// - Client provides expected PCRs for reconstruct-verify validation
+/// - Raw attestation document is returned for client-side re-verification
+///
+/// Reference: <https://blog.trailofbits.com/2024/02/16/a-few-notes-on-aws-nitro-enclaves-images-and-attestation/>
+///
+/// # Errors
+///
+/// - [`AppError::ValidationError`] - Request validation failed
+/// - [`AppError::EnclaveNotFound`] - No enclaves available
+/// - [`AppError::AttestationError`] - Attestation verification failed
+/// - [`AppError::InternalServerError`] - Enclave communication failure
+#[tracing::instrument(skip(state, request))]
+pub async fn verify(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<VerifyRequest>,
+) -> Result<Json<VerifyResponse>, AppError> {
+    // 1. Validate incoming request
+    tracing::debug!("[parent] validating verify request");
+    request.validate().map_err(|e| {
+        tracing::error!("[parent] verify validation failed: {}", e);
+        AppError::ValidationError(e.to_string())
+    })?;
+
+    // 2. Get available enclaves early to fail fast if none are available
+    let enclaves: Vec<EnclaveDescribeInfo> = state.enclaves.get_enclaves().await;
+    if enclaves.is_empty() {
+        return Err(AppError::EnclaveNotFound);
+    }
+
+    // 3. Select a random enclave for load balancing
+    let index = fastrand::usize(..enclaves.len());
+    let enclave = enclaves.get(index).ok_or(AppError::EnclaveNotFound)?;
+    let cid: u32 = enclave
+        .enclave_cid
+        .try_into()
+        .map_err(|_| AppError::InternalServerError)?;
+
+    tracing::debug!("[parent] requesting attestation from CID: {:?}", cid);
+
+    // 4. Request attestation document from enclave
+    let nonce = request.nonce.clone();
+    let user_data = request.user_data.clone();
+    let enclaves_ref = state.enclaves.clone();
+    let port = constants::ENCLAVE_PORT;
+
+    let attestation_document: String =
+        tokio::task::spawn_blocking(move || enclaves_ref.attest(cid, port, nonce, user_data))
+            .await
+            .map_err(|e| {
+                tracing::error!("[parent] spawn_blocking task failed: {:?}", e);
+                AppError::InternalServerError
+            })?
+            .map_err(|e| {
+                tracing::error!("[parent] enclave attestation failed: {:?}", e);
+                e
+            })?;
+
+    tracing::debug!(
+        "[parent] received attestation document ({} bytes)",
+        attestation_document.len()
+    );
+
+    // 5. Verify the attestation document using reconstruct-verify approach
+    let max_age_ms = request
+        .max_age_ms
+        .unwrap_or(constants::DEFAULT_ATTESTATION_MAX_AGE_MS);
+
+    let verification = match verify_attestation(
+        &attestation_document,
+        &request.expected_pcrs,
+        &request.nonce,
+        Some(max_age_ms),
+    ) {
+        Ok(result) => result,
+        Err(e) => {
+            // Return a verification result with the error, rather than failing the request
+            // This allows clients to see partial verification results
+            tracing::warn!("[parent] attestation verification failed: {}", e);
+            VerificationResult {
+                verified: false,
+                certificate_chain_valid: false,
+                pcrs_match: false,
+                nonce_valid: false,
+                timestamp_valid: false,
+                document_info: DocumentInfo {
+                    module_id: String::new(),
+                    timestamp: 0,
+                    digest: String::new(),
+                    nonce: None,
+                    user_data: None,
+                },
+                actual_pcrs: std::collections::BTreeMap::new(),
+                errors: Some(vec![e.to_string()]),
+            }
+        }
+    };
+
+    // 6. Return both raw attestation document and verification result
+    let response = VerifyResponse {
+        attestation_document,
+        verification,
     };
 
     Ok(Json(response))

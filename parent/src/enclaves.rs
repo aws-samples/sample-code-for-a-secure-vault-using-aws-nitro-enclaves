@@ -38,6 +38,27 @@ use crate::{
     protocol::{recv_message, send_message},
 };
 
+/// Attestation request to send to the enclave.
+#[derive(serde::Serialize)]
+struct AttestationRequest {
+    #[serde(rename = "type")]
+    request_type: &'static str,
+    nonce: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    user_data: Option<String>,
+}
+
+/// Attestation response received from the enclave.
+#[derive(serde::Deserialize)]
+pub struct AttestationResponse {
+    /// The attestation document (base64 encoded).
+    #[serde(default)]
+    pub attestation_document: Option<String>,
+    /// Error message if attestation failed.
+    #[serde(default)]
+    pub error: Option<String>,
+}
+
 /// Manager for Nitro Enclaves.
 ///
 /// Provides thread-safe enclave discovery, launch, and communication.
@@ -217,6 +238,92 @@ impl Enclaves {
         );
 
         Ok(result)
+    }
+
+    /// Requests an attestation document from an enclave.
+    ///
+    /// This is a blocking operation that:
+    /// 1. Connects to the enclave via vsock
+    /// 2. Sends an attestation request with the provided nonce
+    /// 3. Receives the attestation document
+    ///
+    /// # Arguments
+    ///
+    /// * `cid` - The enclave's CID (Context ID)
+    /// * `port` - The vsock port to connect to
+    /// * `nonce` - Client-provided nonce for replay protection (base64 encoded)
+    /// * `user_data` - Optional user data to include in attestation (base64 encoded)
+    ///
+    /// # Returns
+    ///
+    /// The attestation document as a base64-encoded string.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - vsock connection fails
+    /// - Message send/receive fails
+    /// - The enclave returns an error
+    /// - JSON serialization/deserialization fails
+    ///
+    /// # Note
+    ///
+    /// This method is synchronous and should be called via
+    /// `tokio::task::spawn_blocking` from async context.
+    #[tracing::instrument(skip(self))]
+    pub fn attest(
+        &self,
+        cid: u32,
+        port: u32,
+        nonce: String,
+        user_data: Option<String>,
+    ) -> Result<String, AppError> {
+        // Connect to enclave via vsock
+        let mut stream = VsockStream::connect(&VsockAddr::new(cid, port))?;
+
+        tracing::debug!(
+            "[parent] connected to CID {} and port {} for attestation",
+            cid,
+            port
+        );
+
+        // Build and serialize attestation request
+        let request = AttestationRequest {
+            request_type: "attestation",
+            nonce,
+            user_data,
+        };
+
+        let msg = json!(request).to_string();
+
+        tracing::trace!("[parent] sending attestation request ({} bytes)", msg.len());
+
+        send_message(&mut stream, msg)?;
+
+        // Receive and deserialize response
+        let response = recv_message(&mut stream)?;
+
+        let result: AttestationResponse = serde_json::from_slice(&response)?;
+
+        // Check for enclave-side errors
+        if let Some(error) = result.error {
+            tracing::error!("[parent] enclave attestation error: {}", error);
+            return Err(AppError::EnclaveError(error));
+        }
+
+        // Extract attestation document
+        match result.attestation_document {
+            Some(doc) => {
+                tracing::trace!(
+                    "[parent] received attestation document ({} bytes)",
+                    doc.len()
+                );
+                Ok(doc)
+            }
+            None => Err(AppError::EnclaveError(
+                "enclave returned empty attestation document".to_string(),
+            )),
+        }
     }
 }
 

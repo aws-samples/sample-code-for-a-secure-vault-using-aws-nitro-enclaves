@@ -83,3 +83,26 @@ pub const REQUEST_BODY_LIMIT: usize = 1024 * 1024;
 ///
 /// HTTP requests that take longer than this duration will receive a 408 Request Timeout response.
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+// ==================== Attestation Verification Constants ====================
+
+/// Minimum nonce length in bytes (16 bytes = 128 bits).
+///
+/// Per Trail of Bits recommendations, nonces should be at least 128 bits
+/// to prevent replay attacks.
+/// Reference: <https://blog.trailofbits.com/2024/02/16/a-few-notes-on-aws-nitro-enclaves-images-and-attestation/>
+pub const MIN_NONCE_LENGTH: usize = 16;
+
+/// Maximum nonce length in bytes (64 bytes = 512 bits).
+pub const MAX_NONCE_LENGTH: usize = 64;
+
+/// Maximum user data length in bytes.
+pub const MAX_USER_DATA_LENGTH: usize = 1024;
+
+/// Default maximum age for attestation documents in milliseconds (5 minutes).
+///
+/// Attestation documents older than this are considered stale and rejected.
+pub const DEFAULT_ATTESTATION_MAX_AGE_MS: u64 = 5 * 60 * 1000;
+
+/// Maximum number of PCR entries allowed in a verify request.
+pub const MAX_PCR_ENTRIES: usize = 24;

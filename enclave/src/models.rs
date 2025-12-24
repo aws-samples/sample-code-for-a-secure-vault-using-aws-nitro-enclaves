@@ -403,6 +403,83 @@ impl TryFrom<String> for Suite {
     }
 }
 
+// =============================================================================
+// Attestation Models
+// =============================================================================
+
+/// Request for attestation document generation.
+///
+/// This request is sent from the parent to the enclave to request an
+/// attestation document from the Nitro Secure Module.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttestationRequest {
+    /// Nonce for freshness guarantee (base64 encoded, min 16 bytes decoded).
+    ///
+    /// Per Trail of Bits recommendations, a minimum nonce length is enforced
+    /// to prevent replay attacks.
+    pub nonce: String,
+
+    /// Optional application-specific data to include (base64 encoded, max 512 bytes decoded).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_data: Option<String>,
+}
+
+/// Response containing an attestation document.
+///
+/// The document is a COSE Sign1 structure that can be verified by clients
+/// to prove the enclave's identity and configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttestationResponse {
+    /// Base64-encoded COSE Sign1 attestation document.
+    ///
+    /// This document contains:
+    /// - PCR values (enclave image hash, kernel, application)
+    /// - Module ID
+    /// - Timestamp (from hypervisor)
+    /// - Certificate chain to AWS Nitro root
+    /// - Echoed nonce, user_data, public_key (if provided)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub document: Option<String>,
+
+    /// Error message if attestation generation failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+impl AttestationResponse {
+    /// Create a successful attestation response.
+    pub fn success(document: String) -> Self {
+        Self {
+            document: Some(document),
+            error: None,
+        }
+    }
+
+    /// Create an error attestation response.
+    pub fn error(message: impl Into<String>) -> Self {
+        Self {
+            document: None,
+            error: Some(message.into()),
+        }
+    }
+}
+
+/// Request envelope that discriminates between different request types.
+///
+/// This allows the enclave to handle multiple types of requests over
+/// the same vsock connection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum EnclaveRequestType {
+    /// Decrypt request (existing functionality)
+    #[serde(rename = "decrypt")]
+    Decrypt(EnclaveRequest),
+
+    /// Attestation document request
+    #[serde(rename = "attestation")]
+    Attestation(AttestationRequest),
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 mod tests {

@@ -14,6 +14,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use aws_credential_types::Credentials;
+use data_encoding::BASE64;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use validator::Validate;
@@ -21,7 +22,8 @@ use zeroize::ZeroizeOnDrop;
 
 use crate::constants::{
     MAX_ENCODING_LENGTH, MAX_ENCRYPTED_KEY_LENGTH, MAX_EXPRESSIONS_COUNT, MAX_FIELDS_COUNT,
-    MAX_REGION_LENGTH, MAX_SUITE_ID_LENGTH, MAX_VAULT_ID_LENGTH,
+    MAX_NONCE_LENGTH, MAX_PCR_ENTRIES, MAX_REGION_LENGTH, MAX_SUITE_ID_LENGTH,
+    MAX_USER_DATA_LENGTH, MAX_VAULT_ID_LENGTH, MIN_NONCE_LENGTH,
 };
 
 /// The information to be provided for a `describe-enclaves` request.
@@ -312,6 +314,175 @@ pub struct EnclaveResponse {
     pub fields: Option<BTreeMap<String, Value>>,
 
     /// List of errors encountered during decryption (if any).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub errors: Option<Vec<String>>,
+}
+
+// ==================== Attestation Verification Models ====================
+
+/// Request for attestation verification.
+///
+/// Implements the Trail of Bits recommended "reconstruct-verify" approach:
+/// the client provides expected PCR values, and the parent verifies that
+/// the attestation document's PCRs match before returning.
+///
+/// # Security
+///
+/// - Nonce must be at least 16 bytes (128 bits) per Trail of Bits recommendations
+/// - Expected PCRs must be provided for reconstruct-verify validation
+/// - Timestamp freshness is validated against `max_age_ms`
+///
+/// Reference: <https://blog.trailofbits.com/2024/02/16/a-few-notes-on-aws-nitro-enclaves-images-and-attestation/>
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct VerifyRequest {
+    /// Client-provided nonce for replay protection (base64 encoded).
+    ///
+    /// Must be at least 16 bytes (128 bits) when decoded.
+    #[validate(length(min = 1))]
+    #[validate(custom(function = "validate_nonce_length"))]
+    pub nonce: String,
+
+    /// Expected PCR values for reconstruct-verify validation.
+    ///
+    /// Keys are PCR indices (e.g., "0", "1", "2"), values are hex-encoded PCR values.
+    /// The parent will verify that the attestation document's PCRs match these values.
+    #[validate(custom(function = "validate_pcr_entries"))]
+    pub expected_pcrs: BTreeMap<String, String>,
+
+    /// Optional user data to include in the attestation (base64 encoded).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(custom(function = "validate_user_data_length"))]
+    pub user_data: Option<String>,
+
+    /// Maximum age of the attestation document in milliseconds.
+    ///
+    /// If not specified, defaults to 5 minutes (300,000 ms).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_age_ms: Option<u64>,
+}
+
+/// Validates that the nonce is at least MIN_NONCE_LENGTH bytes when base64-decoded.
+fn validate_nonce_length(nonce: &str) -> Result<(), validator::ValidationError> {
+    let decoded = BASE64
+        .decode(nonce.as_bytes())
+        .map_err(|_| validator::ValidationError::new("invalid_base64_nonce"))?;
+
+    if decoded.len() < MIN_NONCE_LENGTH {
+        return Err(validator::ValidationError::new("nonce_too_short"));
+    }
+    if decoded.len() > MAX_NONCE_LENGTH {
+        return Err(validator::ValidationError::new("nonce_too_long"));
+    }
+    Ok(())
+}
+
+/// Validates the PCR entries map.
+fn validate_pcr_entries(
+    pcrs: &BTreeMap<String, String>,
+) -> Result<(), validator::ValidationError> {
+    if pcrs.is_empty() {
+        return Err(validator::ValidationError::new("pcrs_required"));
+    }
+    if pcrs.len() > MAX_PCR_ENTRIES {
+        return Err(validator::ValidationError::new("too_many_pcr_entries"));
+    }
+
+    for (key, value) in pcrs {
+        // PCR indices should be valid numbers 0-23
+        let idx: u8 = key
+            .parse()
+            .map_err(|_| validator::ValidationError::new("invalid_pcr_index"))?;
+        if idx > 23 {
+            return Err(validator::ValidationError::new("pcr_index_out_of_range"));
+        }
+
+        // PCR values should be valid hex (SHA-384 = 96 hex chars, or could be zeros)
+        if value.is_empty() {
+            return Err(validator::ValidationError::new("empty_pcr_value"));
+        }
+        if !value.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(validator::ValidationError::new("invalid_pcr_hex"));
+        }
+    }
+    Ok(())
+}
+
+/// Validates user data length when base64-decoded.
+fn validate_user_data_length(user_data: &str) -> Result<(), validator::ValidationError> {
+    let decoded = BASE64
+        .decode(user_data.as_bytes())
+        .map_err(|_| validator::ValidationError::new("invalid_base64_user_data"))?;
+
+    if decoded.len() > MAX_USER_DATA_LENGTH {
+        return Err(validator::ValidationError::new("user_data_too_long"));
+    }
+    Ok(())
+}
+
+/// Response from attestation verification.
+///
+/// Contains both the raw attestation document (for client-side re-verification)
+/// and the parent's verification result.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerifyResponse {
+    /// The raw attestation document from the enclave (base64 encoded).
+    ///
+    /// Clients can use this to perform their own verification as defense-in-depth.
+    pub attestation_document: String,
+
+    /// The parent's verification result.
+    pub verification: VerificationResult,
+}
+
+/// Information extracted from the attestation document.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentInfo {
+    /// Module ID from the enclave.
+    pub module_id: String,
+
+    /// Timestamp from the attestation document (milliseconds since Unix epoch).
+    pub timestamp: u64,
+
+    /// Digest algorithm used.
+    pub digest: String,
+
+    /// Nonce from the attestation (base64 encoded).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nonce: Option<String>,
+
+    /// User data from the attestation (base64 encoded).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_data: Option<String>,
+}
+
+/// Result of attestation verification.
+///
+/// Implements the Trail of Bits recommended reconstruct-verify approach.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerificationResult {
+    /// Whether all verification checks passed.
+    pub verified: bool,
+
+    /// Certificate chain validation status (chain validates to AWS Nitro root).
+    pub certificate_chain_valid: bool,
+
+    /// Whether PCRs matched expected values (reconstruct-verify approach).
+    pub pcrs_match: bool,
+
+    /// Whether the nonce matched the expected value.
+    pub nonce_valid: bool,
+
+    /// Whether the timestamp is within the allowed age.
+    pub timestamp_valid: bool,
+
+    /// Information extracted from the attestation document.
+    pub document_info: DocumentInfo,
+
+    /// Actual PCR values from the attestation document (hex encoded).
+    /// Keys are "PCR0", "PCR1", etc.
+    pub actual_pcrs: BTreeMap<String, String>,
+
+    /// List of errors if any verification checks failed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub errors: Option<Vec<String>>,
 }
