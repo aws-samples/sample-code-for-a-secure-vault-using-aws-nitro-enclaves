@@ -169,7 +169,10 @@ mod tests {
 
     #[test]
     fn test_min_nonce_length_constant() {
-        assert_eq!(MIN_NONCE_LENGTH, 16, "minimum nonce should be 16 bytes (128 bits)");
+        assert_eq!(
+            MIN_NONCE_LENGTH, 16,
+            "minimum nonce should be 16 bytes (128 bits)"
+        );
     }
 
     #[test]

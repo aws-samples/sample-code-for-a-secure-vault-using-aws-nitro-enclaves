@@ -97,8 +97,8 @@ pub fn verify_attestation(
         .as_ref()
         .ok_or_else(|| anyhow!("COSE Sign1 has no payload"))?;
 
-    let parsed = parse_attestation_payload(payload)
-        .context("failed to parse attestation payload")?;
+    let parsed =
+        parse_attestation_payload(payload).context("failed to parse attestation payload")?;
 
     // 4. Extract actual PCRs for response (before reconstruction)
     let actual_pcrs = pcrs_to_hex_map(&parsed.pcrs);
@@ -157,8 +157,14 @@ pub fn verify_attestation(
         module_id: parsed.module_id,
         timestamp: parsed.timestamp,
         digest: parsed.digest,
-        nonce: parsed.nonce.as_ref().map(|n| data_encoding::BASE64.encode(n)),
-        user_data: parsed.user_data.as_ref().map(|d| data_encoding::BASE64.encode(d)),
+        nonce: parsed
+            .nonce
+            .as_ref()
+            .map(|n| data_encoding::BASE64.encode(n)),
+        user_data: parsed
+            .user_data
+            .as_ref()
+            .map(|d| data_encoding::BASE64.encode(d)),
     };
 
     let verified = certificate_chain_valid && pcrs_match && nonce_valid && timestamp_valid;
@@ -171,7 +177,11 @@ pub fn verify_attestation(
         timestamp_valid,
         document_info,
         actual_pcrs,
-        errors: if errors.is_empty() { None } else { Some(errors) },
+        errors: if errors.is_empty() {
+            None
+        } else {
+            Some(errors)
+        },
     })
 }
 
@@ -190,9 +200,10 @@ fn parse_attestation_payload(payload: &[u8]) -> Result<ParsedAttestation> {
         for (k, v) in &map {
             if let CborValue::Text(k_str) = k
                 && k_str == key
-                    && let CborValue::Text(s) = v {
-                        return Ok(s.clone());
-                    }
+                && let CborValue::Text(s) = v
+            {
+                return Ok(s.clone());
+            }
         }
         bail!("missing or invalid field: {}", key)
     };
@@ -202,10 +213,11 @@ fn parse_attestation_payload(payload: &[u8]) -> Result<ParsedAttestation> {
         for (k, v) in &map {
             if let CborValue::Text(k_str) = k
                 && k_str == key
-                    && let CborValue::Integer(i) = v {
-                        let val: i128 = (*i).into();
-                        return Ok(val as u64);
-                    }
+                && let CborValue::Integer(i) = v
+            {
+                let val: i128 = (*i).into();
+                return Ok(val as u64);
+            }
         }
         bail!("missing or invalid field: {}", key)
     };
@@ -215,9 +227,10 @@ fn parse_attestation_payload(payload: &[u8]) -> Result<ParsedAttestation> {
         for (k, v) in &map {
             if let CborValue::Text(k_str) = k
                 && k_str == key
-                    && let CborValue::Bytes(b) = v {
-                        return Ok(b.clone());
-                    }
+                && let CborValue::Bytes(b) = v
+            {
+                return Ok(b.clone());
+            }
         }
         bail!("missing or invalid field: {}", key)
     };
@@ -227,9 +240,10 @@ fn parse_attestation_payload(payload: &[u8]) -> Result<ParsedAttestation> {
         for (k, v) in &map {
             if let CborValue::Text(k_str) = k
                 && k_str == key
-                    && let CborValue::Bytes(b) = v {
-                        return Some(b.clone());
-                    }
+                && let CborValue::Bytes(b) = v
+            {
+                return Some(b.clone());
+            }
         }
         None
     };
@@ -239,15 +253,17 @@ fn parse_attestation_payload(payload: &[u8]) -> Result<ParsedAttestation> {
     for (k, v) in &map {
         if let CborValue::Text(k_str) = k
             && k_str == "pcrs"
-                && let CborValue::Map(pcr_map) = v {
-                    for (pk, pv) in pcr_map {
-                        if let CborValue::Integer(idx) = pk
-                            && let CborValue::Bytes(hash) = pv {
-                                let idx_val: i128 = (*idx).into();
-                                pcrs.insert(idx_val as u8, hash.clone());
-                            }
-                    }
+            && let CborValue::Map(pcr_map) = v
+        {
+            for (pk, pv) in pcr_map {
+                if let CborValue::Integer(idx) = pk
+                    && let CborValue::Bytes(hash) = pv
+                {
+                    let idx_val: i128 = (*idx).into();
+                    pcrs.insert(idx_val as u8, hash.clone());
                 }
+            }
+        }
     }
 
     // Extract cabundle (array of certificates)
@@ -255,13 +271,14 @@ fn parse_attestation_payload(payload: &[u8]) -> Result<ParsedAttestation> {
     for (k, v) in &map {
         if let CborValue::Text(k_str) = k
             && k_str == "cabundle"
-                && let CborValue::Array(certs) = v {
-                    for cert in certs {
-                        if let CborValue::Bytes(cert_bytes) = cert {
-                            cabundle.push(cert_bytes.clone());
-                        }
-                    }
+            && let CborValue::Array(certs) = v
+        {
+            for cert in certs {
+                if let CborValue::Bytes(cert_bytes) = cert {
+                    cabundle.push(cert_bytes.clone());
                 }
+            }
+        }
     }
 
     Ok(ParsedAttestation {
@@ -461,7 +478,9 @@ fn reconstruct_and_verify(
 
     // Get the public key from the certificate
     let public_key_info = &enclave_cert.tbs_certificate.subject_public_key_info;
-    let public_key_bytes = public_key_info.subject_public_key.as_bytes()
+    let public_key_bytes = public_key_info
+        .subject_public_key
+        .as_bytes()
         .ok_or_else(|| anyhow!("no public key bytes"))?;
 
     // Parse as P-384 public key
@@ -478,8 +497,7 @@ fn reconstruct_and_verify(
 
     // Build the Sig_structure for verification
     // According to RFC 8152, we need to verify against the Sig_structure
-    let payload = cose.payload.as_ref()
-        .ok_or_else(|| anyhow!("no payload"))?;
+    let payload = cose.payload.as_ref().ok_or_else(|| anyhow!("no payload"))?;
 
     // The Sig_structure is: ["Signature1", protected, external_aad, payload]
     // Serialize the protected header to get its bytes

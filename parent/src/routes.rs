@@ -19,13 +19,12 @@
 use std::sync::Arc;
 
 use crate::application::AppState;
+use crate::attestation::verify_attestation;
 use crate::constants;
 use crate::errors::AppError;
-use crate::attestation::verify_attestation;
 use crate::models::{
-    Credential, DocumentInfo, EnclaveDescribeInfo, EnclaveRequest, EnclaveResponse,
-    EnclaveRunInfo, ParentRequest, ParentResponse, VerificationResult, VerifyRequest,
-    VerifyResponse,
+    Credential, DocumentInfo, EnclaveDescribeInfo, EnclaveRequest, EnclaveResponse, EnclaveRunInfo,
+    ParentRequest, ParentResponse, VerificationResult, VerifyRequest, VerifyResponse,
 };
 
 use axum::Json;

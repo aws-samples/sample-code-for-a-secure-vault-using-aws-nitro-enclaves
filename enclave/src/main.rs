@@ -10,7 +10,10 @@ use anyhow::{Error, Result, anyhow};
 use enclave_vault::{
     constants::{ENCLAVE_PORT, MAX_CONCURRENT_CONNECTIONS},
     expressions::execute_expressions,
-    models::{AttestationRequest, AttestationResponse, EnclaveRequest, EnclaveRequestType, EnclaveResponse},
+    models::{
+        AttestationRequest, AttestationResponse, EnclaveRequest, EnclaveRequestType,
+        EnclaveResponse,
+    },
     nsm,
     protocol::{recv_message, send_message},
     utils::base64_decode,
@@ -140,7 +143,8 @@ fn handle_attestation<S: Read + Write>(mut stream: S, request: AttestationReques
         Some(ud) => match base64_decode(ud) {
             Ok(d) => Some(d),
             Err(err) => {
-                let response = AttestationResponse::error(format!("invalid user_data base64: {err}"));
+                let response =
+                    AttestationResponse::error(format!("invalid user_data base64: {err}"));
                 let payload = serde_json::to_string(&response)
                     .map_err(|err| anyhow!("failed to serialize response: {err:?}"))?;
                 send_message(&mut stream, &payload)?;

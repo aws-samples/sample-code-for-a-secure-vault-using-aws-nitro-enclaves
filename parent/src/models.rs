@@ -377,9 +377,7 @@ fn validate_nonce_length(nonce: &str) -> Result<(), validator::ValidationError> 
 }
 
 /// Validates the PCR entries map.
-fn validate_pcr_entries(
-    pcrs: &BTreeMap<String, String>,
-) -> Result<(), validator::ValidationError> {
+fn validate_pcr_entries(pcrs: &BTreeMap<String, String>) -> Result<(), validator::ValidationError> {
     if pcrs.is_empty() {
         return Err(validator::ValidationError::new("pcrs_required"));
     }
