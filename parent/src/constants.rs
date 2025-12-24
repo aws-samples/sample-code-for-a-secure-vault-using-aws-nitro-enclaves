@@ -93,8 +93,8 @@ pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// Reference: <https://blog.trailofbits.com/2024/02/16/a-few-notes-on-aws-nitro-enclaves-images-and-attestation/>
 pub const MIN_NONCE_LENGTH: usize = 16;
 
-/// Maximum nonce length in bytes (64 bytes = 512 bits).
-pub const MAX_NONCE_LENGTH: usize = 64;
+/// Maximum nonce length in bytes (512 bytes per NSM API limit).
+pub const MAX_NONCE_LENGTH: usize = 512;
 
 /// Maximum user data length in bytes.
 pub const MAX_USER_DATA_LENGTH: usize = 1024;

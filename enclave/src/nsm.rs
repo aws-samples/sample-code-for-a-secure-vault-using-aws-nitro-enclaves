@@ -60,22 +60,22 @@ pub fn get_attestation_document(
     use aws_nitro_enclaves_nsm_api::api::{Request, Response};
     use aws_nitro_enclaves_nsm_api::driver;
 
-    // Validate nonce length (minimum enforced per Trail of Bits)
-    if let Some(n) = nonce {
-        if n.len() < MIN_NONCE_LENGTH {
-            bail!(
-                "nonce must be at least {} bytes, got {}",
-                MIN_NONCE_LENGTH,
-                n.len()
-            );
-        }
-        if n.len() > MAX_NONCE_LENGTH {
-            bail!(
-                "nonce must be at most {} bytes, got {}",
-                MAX_NONCE_LENGTH,
-                n.len()
-            );
-        }
+    // Validate nonce is present and has proper length (per Trail of Bits recommendations)
+    // Nonce is mandatory to prevent replay attacks
+    let n = nonce.ok_or_else(|| anyhow!("nonce is required for attestation"))?;
+    if n.len() < MIN_NONCE_LENGTH {
+        bail!(
+            "nonce must be at least {} bytes, got {}",
+            MIN_NONCE_LENGTH,
+            n.len()
+        );
+    }
+    if n.len() > MAX_NONCE_LENGTH {
+        bail!(
+            "nonce must be at most {} bytes, got {}",
+            MAX_NONCE_LENGTH,
+            n.len()
+        );
     }
 
     // Validate user_data length
@@ -106,10 +106,10 @@ pub fn get_attestation_document(
         bail!("failed to initialize NSM device: fd={}", nsm_fd);
     }
 
-    // Build attestation request
+    // Build attestation request (nonce already validated above)
     let request = Request::Attestation {
         user_data: user_data.map(|d| d.to_vec()),
-        nonce: nonce.map(|n| n.to_vec()),
+        nonce: Some(n.to_vec()),
         public_key: public_key.map(|pk| pk.to_vec()),
     };
 
@@ -139,22 +139,22 @@ pub fn get_attestation_document(
     nonce: Option<&[u8]>,
     _public_key: Option<&[u8]>,
 ) -> Result<Vec<u8>> {
-    // Validate nonce length for testing (same validation as production)
-    if let Some(n) = nonce {
-        if n.len() < MIN_NONCE_LENGTH {
-            bail!(
-                "nonce must be at least {} bytes, got {}",
-                MIN_NONCE_LENGTH,
-                n.len()
-            );
-        }
-        if n.len() > MAX_NONCE_LENGTH {
-            bail!(
-                "nonce must be at most {} bytes, got {}",
-                MAX_NONCE_LENGTH,
-                n.len()
-            );
-        }
+    // Validate nonce is present and has proper length (same validation as production)
+    // Nonce is mandatory to prevent replay attacks
+    let n = nonce.ok_or_else(|| anyhow!("nonce is required for attestation"))?;
+    if n.len() < MIN_NONCE_LENGTH {
+        bail!(
+            "nonce must be at least {} bytes, got {}",
+            MIN_NONCE_LENGTH,
+            n.len()
+        );
+    }
+    if n.len() > MAX_NONCE_LENGTH {
+        bail!(
+            "nonce must be at most {} bytes, got {}",
+            MAX_NONCE_LENGTH,
+            n.len()
+        );
     }
 
     Err(anyhow!(
@@ -202,18 +202,16 @@ mod tests {
     }
 
     #[test]
-    fn test_nonce_none_is_allowed() {
-        // None nonce should be allowed (though not recommended)
+    fn test_nonce_none_is_rejected() {
+        // None nonce should be rejected (nonce is mandatory per Trail of Bits)
         let result = get_attestation_document(None, None, None);
 
-        // On non-musl targets, this will fail with "not in enclave" error
-        // but it should NOT fail with nonce validation error
-        if let Err(err) = result {
-            assert!(
-                !err.to_string().contains("nonce"),
-                "None nonce should be allowed"
-            );
-        }
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("nonce is required"),
+            "None nonce should be rejected with 'nonce is required' error"
+        );
     }
 
     #[test]

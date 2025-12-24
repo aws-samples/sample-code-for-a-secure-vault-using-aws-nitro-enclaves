@@ -52,7 +52,8 @@ struct AttestationRequest {
 #[derive(serde::Deserialize)]
 pub struct AttestationResponse {
     /// The attestation document (base64 encoded).
-    #[serde(default)]
+    /// Note: Enclave serializes this as "document", so we rename for deserialization.
+    #[serde(default, rename = "document")]
     pub attestation_document: Option<String>,
     /// Error message if attestation failed.
     #[serde(default)]

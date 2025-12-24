@@ -28,6 +28,8 @@ use anyhow::{Context, Result, anyhow, bail};
 use ciborium::Value as CborValue;
 use coset::{CoseSign1, TaggedCborSerializable};
 use p384::ecdsa::{Signature, VerifyingKey, signature::Verifier};
+use subtle::ConstantTimeEq;
+use tracing::debug;
 use x509_cert::der::Decode;
 
 use crate::models::{DocumentInfo, VerificationResult};
@@ -38,6 +40,12 @@ pub const MIN_NONCE_BYTES: usize = 16;
 
 /// Default maximum attestation age in milliseconds (5 minutes).
 pub const DEFAULT_MAX_AGE_MS: u64 = 300_000;
+
+/// Clock skew tolerance in milliseconds (60 seconds).
+///
+/// Allows attestation timestamps to be slightly in the future due to clock differences
+/// between the enclave and the parent instance.
+pub const CLOCK_SKEW_TOLERANCE_MS: u64 = 60_000;
 
 /// Parsed attestation document (internal representation).
 #[derive(Debug)]
@@ -216,7 +224,10 @@ fn parse_attestation_payload(payload: &[u8]) -> Result<ParsedAttestation> {
                 && let CborValue::Integer(i) = v
             {
                 let val: i128 = (*i).into();
-                return Ok(val as u64);
+                let u64_val: u64 = val
+                    .try_into()
+                    .map_err(|_| anyhow!("field {} has value {} out of u64 range", key, val))?;
+                return Ok(u64_val);
             }
         }
         bail!("missing or invalid field: {}", key)
@@ -260,6 +271,10 @@ fn parse_attestation_payload(payload: &[u8]) -> Result<ParsedAttestation> {
                     && let CborValue::Bytes(hash) = pv
                 {
                     let idx_val: i128 = (*idx).into();
+                    // PCR indices must be 0-23 per Nitro spec
+                    if !(0..=23).contains(&idx_val) {
+                        continue; // Skip invalid PCR indices
+                    }
                     pcrs.insert(idx_val as u8, hash.clone());
                 }
             }
@@ -338,6 +353,7 @@ fn validate_certificate_chain(parsed: &ParsedAttestation) -> Result<bool> {
 
     // Verify enclave certificate validity period
     if !is_cert_valid_at(&enclave_cert, now_secs) {
+        debug!("enclave certificate validity check failed");
         return Ok(false);
     }
 
@@ -345,19 +361,25 @@ fn validate_certificate_chain(parsed: &ParsedAttestation) -> Result<bool> {
     if let Some(first_intermediate) = intermediates.first() {
         // Verify enclave cert is signed by first intermediate
         if !verify_cert_signature(&enclave_cert, first_intermediate)? {
+            debug!("enclave certificate signature verification failed");
             return Ok(false);
         }
 
         // Verify each intermediate (except last) is signed by next using windows
-        for pair in intermediates.windows(2) {
+        for (i, pair) in intermediates.windows(2).enumerate() {
             let (current, next) = match pair {
                 [c, n] => (c, n),
                 _ => continue, // windows(2) always returns pairs
             };
             if !is_cert_valid_at(current, now_secs) {
+                debug!("intermediate certificate {} validity check failed", i);
                 return Ok(false);
             }
             if !verify_cert_signature(current, next)? {
+                debug!(
+                    "intermediate certificate {} signature verification failed",
+                    i
+                );
                 return Ok(false);
             }
         }
@@ -365,15 +387,18 @@ fn validate_certificate_chain(parsed: &ParsedAttestation) -> Result<bool> {
         // Verify last intermediate validity and signature by root
         if let Some(last) = intermediates.last() {
             if !is_cert_valid_at(last, now_secs) {
+                debug!("last intermediate certificate validity check failed");
                 return Ok(false);
             }
             if !verify_cert_signature(last, &root_cert)? {
+                debug!("last intermediate certificate signature by root failed");
                 return Ok(false);
             }
         }
     } else {
         // No intermediates: enclave cert should be signed by root directly
         if !verify_cert_signature(&enclave_cert, &root_cert)? {
+            debug!("enclave certificate signature by root failed (no intermediates)");
             return Ok(false);
         }
     }
@@ -416,7 +441,10 @@ fn verify_cert_signature(
     // Parse as P-384 public key (AWS Nitro uses ECDSA P-384)
     let verifying_key = match VerifyingKey::from_sec1_bytes(issuer_pk_bytes) {
         Ok(key) => key,
-        Err(_) => return Ok(false), // Key format mismatch
+        Err(e) => {
+            debug!("failed to parse issuer public key as P-384: {:?}", e);
+            return Ok(false);
+        }
     };
 
     // Get the signature from the subject certificate
@@ -428,7 +456,10 @@ fn verify_cert_signature(
     // Parse the signature (DER encoded for X.509)
     let signature = match Signature::from_der(signature_bytes) {
         Ok(sig) => sig,
-        Err(_) => return Ok(false), // Invalid signature format
+        Err(e) => {
+            debug!("failed to parse certificate signature as DER: {:?}", e);
+            return Ok(false);
+        }
     };
 
     // The TBS (to-be-signed) certificate is what was signed
@@ -457,11 +488,15 @@ fn reconstruct_and_verify(
     // 1. Check if expected PCRs match actual PCRs
     // 2. If they match, verify the COSE signature
 
-    // First, verify all expected PCRs match actual PCRs
+    // First, verify all expected PCRs match actual PCRs using constant-time comparison
+    // to prevent timing side-channel attacks
     for (idx, expected_value) in expected_pcrs {
         match parsed.pcrs.get(idx) {
             Some(actual_value) => {
-                if actual_value != expected_value {
+                // Use constant-time comparison to prevent timing attacks
+                if actual_value.ct_eq(expected_value).into() {
+                    // Values match, continue checking
+                } else {
                     return Ok(false);
                 }
             }
@@ -525,13 +560,18 @@ fn reconstruct_and_verify(
 }
 
 /// Verify nonce in attestation matches expected.
+///
+/// Uses constant-time comparison to prevent timing side-channel attacks.
 fn verify_nonce(actual: &Option<Vec<u8>>, expected_b64: &str) -> Result<bool> {
     let expected = data_encoding::BASE64
         .decode(expected_b64.as_bytes())
         .map_err(|e| anyhow!("failed to decode expected nonce: {:?}", e))?;
 
     match actual {
-        Some(actual_nonce) => Ok(actual_nonce == &expected),
+        Some(actual_nonce) => {
+            // Use constant-time comparison to prevent timing attacks
+            Ok(actual_nonce.ct_eq(&expected).into())
+        }
         None => Ok(false),
     }
 }
@@ -543,8 +583,8 @@ fn verify_timestamp(timestamp_ms: u64, max_age_ms: u64) -> Result<bool> {
         .context("system time error")?
         .as_millis() as u64;
 
-    // Check if attestation is from the future (clock skew tolerance: 60s)
-    if timestamp_ms > now_ms + 60_000 {
+    // Check if attestation is from the future (with clock skew tolerance)
+    if timestamp_ms > now_ms + CLOCK_SKEW_TOLERANCE_MS {
         return Ok(false);
     }
 
