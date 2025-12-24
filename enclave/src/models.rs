@@ -33,7 +33,7 @@ use rustls::crypto::aws_lc_rs::hpke::{
     DH_KEM_P256_HKDF_SHA256_AES_256, DH_KEM_P384_HKDF_SHA384_AES_256,
     DH_KEM_P521_HKDF_SHA512_AES_256,
 };
-use rustls::crypto::hpke::{Hpke, HpkePrivateKey};
+use rustls::crypto::hpke::Hpke;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use zeroize::ZeroizeOnDrop;
@@ -41,7 +41,7 @@ use zeroize::ZeroizeOnDrop;
 use crate::constants::{ENCODING_BINARY, ENCODING_HEX, MAX_FIELDS, P256, P384, P521};
 
 use crate::hpke::decrypt_value;
-use crate::kms::get_secret_key;
+use crate::kms::{SecureHpkePrivateKey, get_secret_key};
 use crate::utils::base64_decode;
 
 /// AWS credentials for KMS access.
@@ -145,11 +145,11 @@ impl EnclaveRequest {
         Ok(())
     }
 
-    fn get_private_key(&self, suite: &Suite) -> Result<HpkePrivateKey> {
+    fn get_private_key(&self, suite: &Suite) -> Result<SecureHpkePrivateKey> {
         let alg = suite.get_signing_algorithm();
 
-        // Decrypt the KMS secret key
-        let sk: HpkePrivateKey = get_secret_key(alg, self)?;
+        // Decrypt the KMS secret key - wrapped in SecureHpkePrivateKey for zeroization
+        let sk = get_secret_key(alg, self)?;
 
         Ok(sk)
     }
@@ -161,8 +161,13 @@ impl EnclaveRequest {
         let suite: Suite = self.request.suite_id.as_str().try_into()?;
         let encoding: Encoding = self.request.encoding.as_ref().try_into()?;
 
-        let private_key = self.get_private_key(&suite)?;
+        // Get private key wrapped in SecureHpkePrivateKey for automatic zeroization
+        let secure_private_key = self.get_private_key(&suite)?;
         println!("[enclave] decrypted KMS secret key");
+
+        // Get the HpkePrivateKey for use with rustls HPKE operations
+        // Note: This creates a short-lived copy; the secure wrapper's copy is zeroized on drop
+        let private_key = secure_private_key.as_hpke_private_key();
 
         let hpke_suite = suite.get_hpke_suite();
         let info = self.request.vault_id.as_bytes();
@@ -193,11 +198,18 @@ impl EnclaveRequest {
                 let decrypted =
                     decrypt_value(hpke_suite, &private_key, info, field, encrypted_data)
                         .unwrap_or_else(|error| {
-                            // Safe: Mutex::lock only fails if another thread panicked while holding
-                            // the lock. In that case, we propagate the panic by unwrapping.
-                            // This is acceptable since panics should never occur in this codebase.
-                            if let Ok(mut err_vec) = errors.lock() {
-                                err_vec.push(error);
+                            // Handle mutex lock - log if poisoned (indicates a panic occurred)
+                            match errors.lock() {
+                                Ok(mut err_vec) => err_vec.push(error),
+                                Err(poisoned) => {
+                                    // Mutex is poisoned - a thread panicked. Log and recover.
+                                    eprintln!(
+                                        "[enclave critical] mutex poisoned during decryption - \
+                                        a thread may have panicked"
+                                    );
+                                    // Recover the data and continue
+                                    poisoned.into_inner().push(error);
+                                }
                             }
                             Value::Null
                         });
@@ -205,10 +217,17 @@ impl EnclaveRequest {
             })
             .collect();
 
-        // Extract errors from mutex - safe since parallel iteration is complete
-        let final_errors = errors
-            .into_inner()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        // Extract errors from mutex - handle poisoning with logging
+        let final_errors = match errors.into_inner() {
+            Ok(errs) => errs,
+            Err(poisoned) => {
+                eprintln!(
+                    "[enclave critical] mutex poisoned during final error extraction - \
+                    a thread may have panicked during decryption"
+                );
+                poisoned.into_inner()
+            }
+        };
 
         Ok((decrypted_fields, final_errors))
     }
