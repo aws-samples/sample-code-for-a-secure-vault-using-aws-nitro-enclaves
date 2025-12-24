@@ -3,10 +3,12 @@
 ## Overview
 
 Add a `/verify` endpoint to the parent application that:
-1. Performs **full cryptographic verification** on the parent (COSE signature + certificate chain)
-2. Returns raw attestation documents for **client-side verification** (defense-in-depth)
-3. Accepts an optional **nonce** parameter for freshness
-4. Includes expected PCR values in **config** for PCR validation
+1. Performs **cryptographic verification** on the parent (COSE signature + certificate chain)
+2. **Extracts and returns PCR values** for client-side validation (no parent-side PCR config)
+3. Returns raw attestation document for **client-side re-verification** (defense-in-depth)
+4. Accepts an optional **nonce** parameter for freshness
+
+**Key Design Decision**: The parent does NOT store or validate expected PCR values. It only verifies cryptographic integrity and extracts PCRs for the client to validate against their own expected values.
 
 ## Architecture
 
@@ -29,12 +31,16 @@ Client                    Parent                         Enclave
   |                         |                              |
   |                         | 1. Verify COSE signature     |
   |                         | 2. Validate cert chain       |
-  |                         | 3. Check PCRs against config |
+  |                         | 3. Extract PCRs (no config)  |
   |                         |                              |
   |  VerifyResponse         |                              |
   |  {attestation_document, |                              |
-  |   verification_result}  |                              |
+  |   verification_result,  |                              |
+  |   pcrs for client}      |                              |
   |<---<--------------------|                              |
+  |                         |                              |
+  | Client validates PCRs   |                              |
+  | against expected values |                              |
 ```
 
 ---
@@ -50,15 +56,6 @@ Add FFI bindings for the Nitro Secure Module API which is already linked via `li
 ```rust
 // NSM device file descriptor type
 pub type NsmFd = i32;
-
-// NSM request/response structures
-#[repr(C)]
-pub struct NsmMessage {
-    pub request: *const u8,
-    pub request_len: usize,
-    pub response: *mut u8,
-    pub response_len: usize,
-}
 
 extern "C" {
     /// Initialize NSM library and open device
@@ -79,9 +76,6 @@ extern "C" {
 
 ```rust
 //! Nitro Secure Module interface for attestation document generation.
-
-use crate::aws_ne::ffi;
-use std::io::{self, ErrorKind};
 
 /// Maximum size for attestation document response
 const MAX_ATTESTATION_DOC_SIZE: usize = 16 * 1024;
@@ -111,7 +105,6 @@ pub fn get_attestation_document(
     // Build CBOR request for NSM
     // Call nsm_process_request
     // Parse response and return document bytes
-    todo!("Implementation in Phase 1")
 }
 ```
 
@@ -159,7 +152,7 @@ Update the main loop to dispatch based on request type.
 
 ---
 
-### Phase 2: Parent - Endpoint and Full Verification
+### Phase 2: Parent - Endpoint and Verification
 
 #### 2.1 Add dependencies (`parent/Cargo.toml`)
 
@@ -173,6 +166,9 @@ webpki = { version = "=0.22.4", default-features = false, features = ["alloc"] }
 
 # For CBOR parsing (attestation document payload)
 ciborium = { version = "=0.2.2", default-features = false }
+
+# Hex encoding for PCR values
+hex = { version = "=0.4.3", default-features = false, features = ["alloc"] }
 ```
 
 #### 2.2 Embed AWS Nitro Root Certificate
@@ -220,20 +216,20 @@ pub struct VerifyRequest {
     pub user_data: Option<String>,
 }
 
-/// Verify endpoint response - includes both raw attestation AND verification results
+/// Verify endpoint response - includes raw attestation AND verification results
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerifyResponse {
-    /// Base64 COSE Sign1 attestation document for client verification
+    /// Base64 COSE Sign1 attestation document for client re-verification
     pub attestation_document: String,
 
-    /// Full verification result from parent
+    /// Verification result from parent
     pub verification: VerificationResult,
 }
 
-/// Complete verification result from parent-side checks
+/// Verification result from parent-side cryptographic checks
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerificationResult {
-    /// Overall verification passed (all checks succeeded)
+    /// Overall cryptographic verification passed
     pub verified: bool,
 
     /// COSE Sign1 signature verification against enclave certificate
@@ -242,9 +238,8 @@ pub struct VerificationResult {
     /// Certificate chain validates to AWS Nitro root
     pub certificate_chain_valid: bool,
 
-    /// PCR validation result (if configured)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pcr_validation: Option<PcrValidationResult>,
+    /// Extracted PCR values (hex encoded) - client validates these
+    pub pcrs: std::collections::BTreeMap<String, String>,
 
     /// Attestation document metadata
     pub document_info: DocumentInfo,
@@ -274,37 +269,25 @@ pub struct DocumentInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_data: Option<String>,
 }
-
-/// PCR validation result
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PcrValidationResult {
-    /// All configured PCRs matched
-    pub valid: bool,
-
-    /// Extracted PCR values (hex encoded)
-    pub pcrs: std::collections::BTreeMap<String, String>,
-
-    /// PCR validation errors
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub errors: Option<Vec<String>>,
-}
 ```
 
 #### 2.4 Create attestation verification module (`parent/src/attestation.rs`)
 
 ```rust
-//! Full attestation document verification.
+//! Attestation document verification.
 //!
 //! Implements COSE Sign1 signature verification, certificate chain validation,
-//! and PCR extraction/validation for AWS Nitro Enclave attestation documents.
+//! and PCR extraction for AWS Nitro Enclave attestation documents.
+//!
+//! NOTE: This module does NOT validate PCR values against expected values.
+//! PCR validation is the client's responsibility.
 
 use aws_nitro_enclaves_cose::CoseSign1;
 use std::collections::BTreeMap;
 use anyhow::{Result, anyhow, Context};
 
 use crate::nitro_root_cert::AWS_NITRO_ROOT_CERT_DER;
-use crate::models::{VerificationResult, PcrValidationResult, DocumentInfo};
-use crate::configuration::ParentOptions;
+use crate::models::{VerificationResult, DocumentInfo};
 
 /// Parsed attestation document
 pub struct ParsedAttestation {
@@ -319,17 +302,16 @@ pub struct ParsedAttestation {
     pub public_key: Option<Vec<u8>>,
 }
 
-/// Verify an attestation document completely.
+/// Verify an attestation document cryptographically.
 ///
 /// Performs:
 /// 1. CBOR/COSE Sign1 parsing
 /// 2. Signature verification using enclave certificate
 /// 3. Certificate chain validation to AWS Nitro root
-/// 4. PCR extraction and optional validation
-pub fn verify_attestation(
-    b64_document: &str,
-    config: &ParentOptions,
-) -> Result<VerificationResult> {
+/// 4. PCR extraction (returned for client validation)
+///
+/// Does NOT validate PCRs - that's the client's job.
+pub fn verify_attestation(b64_document: &str) -> Result<VerificationResult> {
     let mut errors = Vec::new();
 
     // 1. Base64 decode
@@ -361,17 +343,8 @@ pub fn verify_attestation(
         false
     });
 
-    // 6. PCR validation (if configured)
-    let pcr_validation = if config.validate_pcrs {
-        Some(validate_pcrs(&parsed.pcrs, config))
-    } else {
-        // Still extract PCRs for response, just don't validate
-        Some(PcrValidationResult {
-            valid: true,
-            pcrs: pcrs_to_hex_map(&parsed.pcrs),
-            errors: None,
-        })
-    };
+    // 6. Extract PCRs (client validates these)
+    let pcrs = pcrs_to_hex_map(&parsed.pcrs);
 
     // 7. Build document info
     let document_info = DocumentInfo {
@@ -382,15 +355,13 @@ pub fn verify_attestation(
         user_data: parsed.user_data.map(|d| base64_encode(&d)),
     };
 
-    let verified = signature_valid
-        && certificate_chain_valid
-        && pcr_validation.as_ref().map(|p| p.valid).unwrap_or(true);
+    let verified = signature_valid && certificate_chain_valid;
 
     Ok(VerificationResult {
         verified,
         signature_valid,
         certificate_chain_valid,
-        pcr_validation,
+        pcrs,
         document_info,
         errors: if errors.is_empty() { None } else { Some(errors) },
     })
@@ -422,54 +393,6 @@ fn parse_attestation_payload(payload: &[u8]) -> Result<ParsedAttestation> {
     todo!("Implementation")
 }
 
-/// Validate PCRs against configured expected values
-fn validate_pcrs(
-    pcrs: &BTreeMap<u8, Vec<u8>>,
-    config: &ParentOptions,
-) -> PcrValidationResult {
-    let mut errors = Vec::new();
-    let hex_pcrs = pcrs_to_hex_map(pcrs);
-
-    // Check PCR0
-    if let Some(ref expected) = config.expected_pcr0 {
-        match hex_pcrs.get("PCR0") {
-            Some(actual) if actual.eq_ignore_ascii_case(expected) => {}
-            Some(actual) => errors.push(format!(
-                "PCR0 mismatch: expected {}, got {}", expected, actual
-            )),
-            None => errors.push("PCR0 not found in attestation".to_string()),
-        }
-    }
-
-    // Check PCR1
-    if let Some(ref expected) = config.expected_pcr1 {
-        match hex_pcrs.get("PCR1") {
-            Some(actual) if actual.eq_ignore_ascii_case(expected) => {}
-            Some(actual) => errors.push(format!(
-                "PCR1 mismatch: expected {}, got {}", expected, actual
-            )),
-            None => errors.push("PCR1 not found in attestation".to_string()),
-        }
-    }
-
-    // Check PCR2
-    if let Some(ref expected) = config.expected_pcr2 {
-        match hex_pcrs.get("PCR2") {
-            Some(actual) if actual.eq_ignore_ascii_case(expected) => {}
-            Some(actual) => errors.push(format!(
-                "PCR2 mismatch: expected {}, got {}", expected, actual
-            )),
-            None => errors.push("PCR2 not found in attestation".to_string()),
-        }
-    }
-
-    PcrValidationResult {
-        valid: errors.is_empty(),
-        pcrs: hex_pcrs,
-        errors: if errors.is_empty() { None } else { Some(errors) },
-    }
-}
-
 fn pcrs_to_hex_map(pcrs: &BTreeMap<u8, Vec<u8>>) -> BTreeMap<String, String> {
     pcrs.iter()
         .map(|(k, v)| (format!("PCR{}", k), hex::encode(v)))
@@ -486,8 +409,10 @@ fn pcrs_to_hex_map(pcrs: &BTreeMap<u8, Vec<u8>>) -> BTreeMap<String, String> {
 /// 1. Requests an attestation document from the enclave
 /// 2. Verifies the COSE Sign1 signature
 /// 3. Validates the certificate chain to AWS Nitro root
-/// 4. Optionally validates PCRs against configured values
-/// 5. Returns both raw attestation (for client verification) and verification results
+/// 4. Extracts PCR values for client validation
+/// 5. Returns raw attestation + verification results
+///
+/// NOTE: PCR validation is the client's responsibility.
 #[tracing::instrument(skip(state, request))]
 pub async fn verify(
     State(state): State<Arc<AppState>>,
@@ -531,8 +456,8 @@ pub async fn verify(
         return Err(AppError::AttestationError(error));
     }
 
-    // 7. Perform full verification
-    let verification = attestation::verify_attestation(&response.document, &state.options)
+    // 7. Perform cryptographic verification (no PCR validation)
+    let verification = attestation::verify_attestation(&response.document)
         .map_err(|e| {
             tracing::error!("[parent] verification failed: {:?}", e);
             AppError::AttestationError(e.to_string())
@@ -591,35 +516,6 @@ impl Enclaves {
 
 ---
 
-### Phase 3: Configuration
-
-#### 3.1 Add config options (`parent/src/configuration.rs`)
-
-```rust
-#[derive(Debug, Clone, Parser)]
-pub struct ParentOptions {
-    // ... existing fields ...
-
-    /// Expected PCR0 value (SHA384 hex, 96 chars) for enclave image hash
-    #[arg(long, env("PARENT_EXPECTED_PCR0"))]
-    pub expected_pcr0: Option<String>,
-
-    /// Expected PCR1 value (SHA384 hex) for kernel/bootstrap
-    #[arg(long, env("PARENT_EXPECTED_PCR1"))]
-    pub expected_pcr1: Option<String>,
-
-    /// Expected PCR2 value (SHA384 hex) for application
-    #[arg(long, env("PARENT_EXPECTED_PCR2"))]
-    pub expected_pcr2: Option<String>,
-
-    /// Enable PCR validation (requires at least one expected_pcrN to be set)
-    #[arg(long, default_value = "false", env("PARENT_VALIDATE_PCRS"), action = ArgAction::SetTrue)]
-    pub validate_pcrs: bool,
-}
-```
-
----
-
 ## Files to Create/Modify
 
 | File | Action | Description |
@@ -629,16 +525,17 @@ pub struct ParentOptions {
 | `enclave/src/models.rs` | Modify | Add AttestationRequest/Response |
 | `enclave/src/main.rs` | Modify | Add request type dispatch |
 | `enclave/src/lib.rs` | Modify | Export nsm module |
-| `parent/src/attestation.rs` | Create | Full COSE/cert chain verification |
+| `parent/src/attestation.rs` | Create | COSE/cert chain verification + PCR extraction |
 | `parent/src/nitro_root_cert.rs` | Create | Embedded AWS Nitro root certificate |
 | `parent/certs/` | Create | Directory for certificate files |
 | `parent/src/models.rs` | Modify | Add VerifyRequest/Response/VerificationResult |
 | `parent/src/routes.rs` | Modify | Add verify handler |
 | `parent/src/enclaves.rs` | Modify | Add attest method |
 | `parent/src/application.rs` | Modify | Register /verify route |
-| `parent/src/configuration.rs` | Modify | Add PCR config options |
 | `parent/src/lib.rs` | Modify | Export attestation, nitro_root_cert modules |
 | `parent/Cargo.toml` | Modify | Add new dependencies |
+
+**Note**: No changes to `parent/src/configuration.rs` - no PCR config needed!
 
 ---
 
@@ -690,14 +587,10 @@ Content-Type: application/json
     "verified": true,
     "signature_valid": true,
     "certificate_chain_valid": true,
-    "pcr_validation": {
-      "valid": true,
-      "pcrs": {
-        "PCR0": "hex-encoded-48-bytes-sha384",
-        "PCR1": "hex-encoded-48-bytes-sha384",
-        "PCR2": "hex-encoded-48-bytes-sha384"
-      },
-      "errors": null
+    "pcrs": {
+      "PCR0": "hex-encoded-48-bytes-sha384",
+      "PCR1": "hex-encoded-48-bytes-sha384",
+      "PCR2": "hex-encoded-48-bytes-sha384"
     },
     "document_info": {
       "module_id": "i-0abc123-enc0123abc",
@@ -724,27 +617,32 @@ Content-Type: application/json
 
 ## Security Notes
 
-1. **Defense-in-depth**: Both parent AND client can verify the attestation
-2. **Parent verification is convenience**: Clients should still verify independently for maximum security
-3. **Nonce ensures freshness**: Clients should provide random nonce and verify it's echoed back
-4. **Root certificate trust**: The AWS Nitro root cert is embedded at build time; its hash should be verified
+1. **Defense-in-depth**: Parent verifies cryptographic integrity; client can re-verify
+2. **PCR validation is client responsibility**: Parent extracts PCRs but doesn't validate them
+3. **Nonce ensures freshness**: Clients provide random nonce and verify it's echoed
+4. **Root certificate trust**: AWS Nitro root cert embedded at build time
+
+### What Parent Verifies
+
+1. **COSE signature** - Proves document was signed by enclave's certificate
+2. **Certificate chain** - Proves enclave cert chains to AWS Nitro root
+
+### What Client Must Verify
+
+1. **PCR values** - Compare against expected values for your enclave build
+2. **Nonce** - Confirm the nonce in response matches what was sent
+3. **Optional**: Re-verify the raw attestation document independently
 
 ### Certificate Chain Validation
 
-The validation follows AWS specifications:
+Follows AWS specifications:
 1. Build chain: `[enclave_cert, intermediate_N, ..., intermediate_1, root]`
 2. Verify each certificate:
    - Temporal validity (not expired)
    - Key usage (keyCertSign for CA certs, digitalSignature for enclave cert)
    - Basic constraints (pathLenConstraint)
 3. Verify signatures up the chain
-4. Anchor trust at the AWS Nitro root certificate
-
-### COSE Signature Verification
-
-1. Extract enclave certificate from attestation document
-2. Parse certificate to get P-384 public key
-3. Verify COSE Sign1 signature (ECDSA P-384) using that key
+4. Anchor trust at AWS Nitro root certificate
 
 ---
 
@@ -754,7 +652,7 @@ The validation follows AWS specifications:
 
 1. COSE Sign1 parsing with test vectors
 2. Certificate chain validation with mock chains
-3. PCR extraction and validation
+3. PCR extraction
 4. Request/response serialization
 
 ### Integration Tests
@@ -768,4 +666,4 @@ The validation follows AWS specifications:
 1. Deploy to Nitro Enclave EC2 instance
 2. Verify real attestation documents
 3. Confirm nonce is correctly echoed
-4. Validate PCRs match build measurements
+4. Client validates PCRs against build measurements
