@@ -101,20 +101,34 @@ pub fn date(ftx: &FunctionContext, This(this): This<Arc<String>>) -> ResolveResu
     }
 }
 
-pub fn today_utc() -> DateTime<FixedOffset> {
+/// Returns today's date at midnight UTC as a DateTime<FixedOffset>.
+///
+/// This function is designed to never panic, returning a CEL error instead
+/// of using expect() on the infallible UTC offset operations.
+pub fn today_utc(ftx: &FunctionContext) -> ResolveResult {
     let now_utc = Utc::now();
-    // UTC offset of 0 is always valid - use expect only in this case since
-    // it's a compile-time constant and failure would indicate a bug in chrono
-    #[allow(clippy::expect_used)]
-    let tz_offset = FixedOffset::east_opt(UTC_OFFSET).expect("UTC offset 0 should always be valid");
+
+    // UTC offset of 0 is theoretically always valid, but we handle failure gracefully
+    let tz_offset = match FixedOffset::east_opt(UTC_OFFSET) {
+        Some(offset) => offset,
+        None => return ftx.error("failed to create UTC timezone offset").into(),
+    };
+
     let date = now_utc.date_naive();
     let datetime = date.and_time(NaiveTime::default());
-    // from_local_datetime with UTC offset should always succeed
-    #[allow(clippy::expect_used)]
-    tz_offset
-        .from_local_datetime(&datetime)
-        .single()
-        .expect("UTC datetime conversion should always succeed")
+
+    // Convert to timezone - handle all cases without panicking
+    let dt_with_tz: DateTime<FixedOffset> = match tz_offset.from_local_datetime(&datetime) {
+        chrono::LocalResult::Single(dt) => dt,
+        chrono::LocalResult::Ambiguous(dt, _) => dt,
+        chrono::LocalResult::None => {
+            return ftx
+                .error("failed to convert datetime to UTC timezone")
+                .into();
+        }
+    };
+
+    Ok(dt_with_tz.into())
 }
 
 pub fn age(This(this): This<DateTime<FixedOffset>>) -> ResolveResult {
