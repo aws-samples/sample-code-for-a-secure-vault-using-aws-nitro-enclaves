@@ -21,15 +21,15 @@ indexing_slicing = "warn"
 
 [dependencies]
 anyhow = { version = "=1.0.100", default-features = false }
-libc = { version = "=0.2.178", default-features = false }
+libc = { version = "=0.2.180", default-features = false }
 aws-lc-rs = { version = "=1.15.2", default-features = false }
 cel-interpreter = { version = "=0.10.0", default-features = false, features = ["json", "chrono"] }
 chrono = { version = "=0.4.42", default-features = false, features = ["now"] }
-data-encoding = { version = "=2.9.0", default-features = false, features = ["alloc"] }
-rayon = { version = "=1.10.0", default-features = false }
+data-encoding = { version = "=2.10.0", default-features = false, features = ["alloc"] }
+rayon = { version = "=1.11.0", default-features = false }
 serde = { version = "=1.0.228", default-features = false, features = ["derive"] }
-serde_json = { version = "=1.0.145", default-features = false }
-rustls = { version = "=0.23.35", default-features = false, features = ["aws_lc_rs", "prefer-post-quantum"] }
+serde_json = { version = "=1.0.149", default-features = false }
+rustls = { version = "=0.23.36", default-features = false, features = ["aws_lc_rs", "prefer-post-quantum"] }
 vsock = { version = "=0.5.2", default-features = false }
 zeroize = { version = "=1.8.2", default-features = false, features = ["zeroize_derive"] }
 
