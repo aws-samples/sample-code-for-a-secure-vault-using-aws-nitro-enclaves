@@ -48,7 +48,7 @@ pub struct ParentOptions {
     /// Optional IAM role name for credential assumption.
     ///
     /// If not specified, the instance's default IAM role is used.
-    #[arg(long, default_value = "None", env("PARENT_ROLE_NAME"))]
+    #[arg(long, env("PARENT_ROLE_NAME"))]
     pub role: Option<String>,
 
     /// Skip the background enclave refresh loop.
@@ -104,6 +104,17 @@ mod tests {
         let opts = ParentOptions::try_parse_from(["test"]).unwrap();
         assert_eq!(opts.host, "127.0.0.1");
         assert_eq!(opts.port, 8080);
+        assert!(opts.role.is_none());
+    }
+
+    #[test]
+    fn test_parse_role_defaults_to_none() {
+        assert!(
+            ParentOptions::try_parse_from(["test"])
+                .unwrap()
+                .role
+                .is_none()
+        );
     }
 
     #[test]
