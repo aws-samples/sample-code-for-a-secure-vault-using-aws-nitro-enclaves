@@ -23,6 +23,8 @@
 //! [`ENCLAVE_PREFIX`]: crate::constants::ENCLAVE_PREFIX
 //! [`MAX_ENCLAVES_PER_INSTANCE`]: crate::constants::MAX_ENCLAVES_PER_INSTANCE
 
+use std::time::Duration;
+
 use serde_json::json;
 use tokio::{process::Command, sync::RwLock};
 use vsock::{VsockAddr, VsockStream};
@@ -37,6 +39,15 @@ use crate::{
     models::EnclaveResponse,
     protocol::{recv_message, send_message},
 };
+
+/// Read/write timeout applied to every [`VsockStream`] used to talk to an enclave.
+///
+/// `tokio::task::spawn_blocking` threads cannot be aborted, so the surrounding HTTP request
+/// timeout cannot unblock a vsock read that is stuck on a slow KMS call or a misbehaving vsock
+/// proxy. Setting an explicit socket-level timeout ensures the blocking thread is released and
+/// the error propagates back to the caller. The value is intentionally chosen below the HTTP
+/// request timeout so vsock failures surface first; tune as needed.
+const VSOCK_IO_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Manager for Nitro Enclaves.
 ///
@@ -196,6 +207,10 @@ impl Enclaves {
     ) -> Result<EnclaveResponse, AppError> {
         // Connect to enclave via vsock
         let mut stream = VsockStream::connect(&VsockAddr::new(cid, port))?;
+
+        // Bound blocking I/O so a stuck KMS call or vsock proxy can't pin this thread forever.
+        stream.set_read_timeout(Some(VSOCK_IO_TIMEOUT))?;
+        stream.set_write_timeout(Some(VSOCK_IO_TIMEOUT))?;
 
         tracing::debug!("[parent] connected to CID {} and port {}", cid, port);
 
