@@ -367,6 +367,28 @@ mod tests {
     }
 
     #[test]
+    fn test_hex_decode_accepts_uppercase() {
+        let expressions: HashMap<String, String> =
+            HashMap::from([("hex_decode".into(), "'426F6F'.hex_decode()".into())]);
+
+        let fields = HashMap::default();
+        let actual = execute_expressions(&fields, &expressions).unwrap();
+
+        assert_eq!(actual.get("hex_decode"), Some(&Value::String("Boo".into())));
+    }
+
+    #[test]
+    fn test_hex_decode_accepts_mixed_case() {
+        let expressions: HashMap<String, String> =
+            HashMap::from([("hex_decode".into(), "'426F62'.hex_decode()".into())]);
+
+        let fields = HashMap::default();
+        let actual = execute_expressions(&fields, &expressions).unwrap();
+
+        assert_eq!(actual.get("hex_decode"), Some(&Value::String("Bob".into())));
+    }
+
+    #[test]
     fn test_complex() {
         let expressions: HashMap<String, String> =
             HashMap::from([("age".into(), "date(birth_date).age()".into())]);

@@ -4,7 +4,7 @@
 use aws_lc_rs::digest;
 use cel_interpreter::{FunctionContext, ResolveResult, extractors::This};
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone, Utc};
-use data_encoding::{BASE64, HEXLOWER};
+use data_encoding::{BASE64, HEXLOWER, HEXLOWER_PERMISSIVE};
 use std::sync::Arc;
 
 // Default functions available:
@@ -48,7 +48,7 @@ pub fn hex_encode(This(this): This<Arc<String>>) -> String {
 }
 
 pub fn hex_decode(ftx: &FunctionContext, This(this): This<Arc<String>>) -> ResolveResult {
-    match HEXLOWER.decode(this.as_bytes()) {
+    match HEXLOWER_PERMISSIVE.decode(this.as_bytes()) {
         Ok(val) => match String::from_utf8(val) {
             Ok(result) => Ok(result.into()),
             Err(e) => ftx.error(e.to_string()).into(),
