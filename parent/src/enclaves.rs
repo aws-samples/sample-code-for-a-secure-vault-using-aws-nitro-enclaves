@@ -70,26 +70,12 @@ impl Enclaves {
         enclaves.clone()
     }
 
-    /// Refreshes the enclave list and optionally launches new enclaves.
-    ///
-    /// This method:
-    /// 1. Calls `nitro-cli describe-enclaves` to get current enclaves
-    /// 2. Launches new enclaves if needed (unless `skip_run_enclaves` is true)
-    /// 3. Filters and stores only enclaves matching [`ENCLAVE_PREFIX`]
-    ///
-    /// # Arguments
-    ///
-    /// * `skip_run_enclaves` - If true, don't launch new enclaves
+    /// Queries `nitro-cli describe-enclaves` and parses the result.
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - `nitro-cli` command fails
-    /// - JSON parsing of output fails
-    /// - Launching new enclaves fails
-    #[tracing::instrument(skip(self))]
-    pub async fn refresh(&self, skip_run_enclaves: bool) -> Result<(), AppError> {
-        // Get current enclave list from nitro-cli
+    /// Returns an error if `nitro-cli` exits non-zero or the JSON output fails to parse.
+    async fn describe_enclaves(&self) -> Result<Vec<EnclaveDescribeInfo>, AppError> {
         let output = Command::new("nitro-cli")
             .arg("describe-enclaves")
             .output()
@@ -106,6 +92,35 @@ impl Enclaves {
 
         tracing::trace!("[parent] enclaves: {:?}", enclaves);
 
+        Ok(enclaves)
+    }
+
+    /// Refreshes the enclave list and optionally launches new enclaves.
+    ///
+    /// This method:
+    /// 1. Calls `nitro-cli describe-enclaves` to get current enclaves
+    /// 2. Launches new enclaves if needed (unless `skip_run_enclaves` is true)
+    /// 3. Re-queries `nitro-cli describe-enclaves` after launching so freshly
+    ///    launched enclaves are immediately visible (otherwise the stored list
+    ///    reflects the pre-launch state and replacement enclaves are invisible
+    ///    until the next refresh tick)
+    /// 4. Filters and stores only enclaves matching [`ENCLAVE_PREFIX`]
+    ///
+    /// # Arguments
+    ///
+    /// * `skip_run_enclaves` - If true, don't launch new enclaves
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - `nitro-cli` command fails
+    /// - JSON parsing of output fails
+    /// - Launching new enclaves fails
+    #[tracing::instrument(skip(self))]
+    pub async fn refresh(&self, skip_run_enclaves: bool) -> Result<(), AppError> {
+        // Get current enclave list from nitro-cli
+        let mut enclaves = self.describe_enclaves().await?;
+
         // Launch additional enclaves if needed
         if !skip_run_enclaves {
             let delta = MAX_ENCLAVES_PER_INSTANCE - enclaves.len();
@@ -114,6 +129,8 @@ impl Enclaves {
                 for _ in 0..delta {
                     self.run_enclave().await?;
                 }
+                // Re-query so freshly launched enclaves are reflected in the stored list.
+                enclaves = self.describe_enclaves().await?;
             }
         } else {
             tracing::warn!("[parent] skipping launching enclaves");
