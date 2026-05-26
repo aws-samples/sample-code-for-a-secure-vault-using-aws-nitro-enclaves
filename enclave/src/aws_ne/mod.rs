@@ -14,6 +14,8 @@ use std::fmt;
 use std::ptr;
 #[cfg(target_env = "musl")]
 use std::slice;
+#[cfg(target_env = "musl")]
+use std::sync::OnceLock;
 
 #[cfg(target_env = "musl")]
 use ffi::{
@@ -22,10 +24,35 @@ use ffi::{
     aws_nitro_enclaves_get_allocator, aws_nitro_enclaves_kms_client,
     aws_nitro_enclaves_kms_client_config_default, aws_nitro_enclaves_kms_client_config_destroy,
     aws_nitro_enclaves_kms_client_configuration, aws_nitro_enclaves_kms_client_destroy,
-    aws_nitro_enclaves_kms_client_new, aws_nitro_enclaves_library_clean_up,
-    aws_nitro_enclaves_library_init, aws_socket_endpoint, aws_string, aws_string_destroy_secure,
-    aws_string_new_from_array,
+    aws_nitro_enclaves_kms_client_new, aws_nitro_enclaves_library_init, aws_socket_endpoint,
+    aws_string, aws_string_destroy_secure, aws_string_new_from_array,
 };
+
+/// One-time initialization guard for the AWS Nitro Enclaves SDK.
+///
+/// The SDK manages process-global state (HTTP client, auth credentials provider, allocator).
+/// Re-initializing or cleaning it up while other threads have in-flight KMS calls can free
+/// state that is still in use, leading to a use-after-free. The SDK is therefore initialized
+/// exactly once per process and is never cleaned up — it lives for the lifetime of the enclave.
+#[cfg(target_env = "musl")]
+static SDK_INIT: OnceLock<()> = OnceLock::new();
+
+/// Ensure the AWS Nitro Enclaves SDK has been initialized exactly once for this process.
+///
+/// Safe to call from multiple threads concurrently; `OnceLock::get_or_init` guarantees the
+/// underlying FFI call executes at most once.
+#[cfg(target_env = "musl")]
+fn ensure_sdk_initialized() {
+    SDK_INIT.get_or_init(|| {
+        // SAFETY: `aws_nitro_enclaves_library_init` initializes process-global SDK state.
+        // `OnceLock::get_or_init` guarantees this closure runs exactly once per process,
+        // so there is no concurrent or repeated initialization. A null allocator argument
+        // selects the SDK's default allocator, which is the documented contract.
+        unsafe {
+            aws_nitro_enclaves_library_init(ptr::null_mut());
+        }
+    });
+}
 
 /// Errors that can occur during KMS operations via FFI
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,8 +111,11 @@ impl KmsResources {
         }
     }
 
-    /// Clean up all allocated resources in reverse order of allocation.
+    /// Clean up all allocated per-request resources in reverse order of allocation.
     /// Uses secure cleanup functions to zero memory before freeing.
+    ///
+    /// The process-global AWS Nitro Enclaves SDK state is intentionally not cleaned up here;
+    /// it is initialized once and remains live for the lifetime of the enclave process.
     ///
     /// # Safety
     ///
@@ -130,17 +160,18 @@ impl KmsResources {
             unsafe { aws_string_destroy_secure(self.region) };
             self.region = ptr::null_mut();
         }
-
-        // Clean up SDK (must be last)
-        unsafe { aws_nitro_enclaves_library_clean_up() };
     }
 }
 
 /// Decrypt ciphertext using KMS with Nitro Enclave attestation.
 ///
-/// This function initializes the SDK, performs decryption, and cleans up
-/// all resources before returning. The SDK automatically generates an
-/// attestation document and sends it to KMS for verification.
+/// On the first call in the process, this function initializes the AWS Nitro Enclaves SDK
+/// exactly once via `OnceLock`; subsequent calls reuse that initialization. It then performs
+/// decryption and cleans up all per-request resources before returning. The SDK's
+/// process-global state is intentionally left initialized for the lifetime of the enclave
+/// — concurrent cleanup of that state across threads would free HTTP/auth state still in use
+/// by other in-flight KMS calls. The SDK automatically generates an attestation document
+/// and sends it to KMS for verification.
 ///
 /// # Arguments
 ///
@@ -158,10 +189,13 @@ impl KmsResources {
 /// # Safety Invariants
 ///
 /// This function maintains the following safety invariants:
+/// - The AWS Nitro Enclaves SDK is initialized exactly once per process via `OnceLock`;
+///   `aws_nitro_enclaves_library_clean_up` is never called, so global SDK state cannot be
+///   torn down while another thread is mid-KMS-call.
 /// - All FFI calls check return values for null pointers before use
-/// - cleanup() is called on ALL error paths to prevent resource leaks
+/// - cleanup() is called on ALL error paths to prevent per-request resource leaks
 /// - No unwrap() or expect() is used on FFI results
-/// - Resources are cleaned up in reverse order of allocation
+/// - Per-request resources are cleaned up in reverse order of allocation
 /// - Secure cleanup functions zero memory before freeing (credentials, plaintext)
 /// - The function never panics - all errors are returned via Result
 #[cfg(target_env = "musl")]
@@ -172,12 +206,14 @@ pub fn kms_decrypt(
     aws_session_token: &[u8],
     ciphertext: &[u8],
 ) -> Result<Vec<u8>, Error> {
+    // Step 1: Ensure the SDK is initialized exactly once for this process.
+    // Safe to call concurrently from multiple threads; the unsafe FFI call is encapsulated
+    // inside the `OnceLock::get_or_init` closure.
+    ensure_sdk_initialized();
+
     let mut resources = KmsResources::new();
 
     unsafe {
-        // Step 1: Initialize SDK with null allocator (uses default)
-        aws_nitro_enclaves_library_init(ptr::null_mut());
-
         // Step 2: Get allocator for subsequent allocations
         resources.allocator = aws_nitro_enclaves_get_allocator();
         if resources.allocator.is_null() {
