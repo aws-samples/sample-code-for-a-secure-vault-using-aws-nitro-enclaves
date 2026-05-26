@@ -67,9 +67,23 @@ pub fn execute_expressions(
         let value: celValue = match program {
             Ok(program) => match program.execute(&context) {
                 Ok(value) => value,
-                Err(err) => format!("Execution Error: {err}").into(),
+                Err(err) => {
+                    // Preserve the original decrypted field value when an in-place expression
+                    // (one whose key matches an existing field) fails to execute. Without this,
+                    // the error string would overwrite the PII/PHI value the caller relies on.
+                    if fields.contains_key(field) {
+                        continue;
+                    }
+                    format!("Execution Error: {err}").into()
+                }
             },
-            Err(err) => format!("Compile Error: {err}").into(),
+            Err(err) => {
+                // Same preservation rule for compile failures on in-place expressions.
+                if fields.contains_key(field) {
+                    continue;
+                }
+                format!("Compile Error: {err}").into()
+            }
         };
 
         context.add_variable_from_value(field, value.clone());
@@ -228,6 +242,42 @@ mod tests {
         }
 
         #[test]
+        fn prop_failed_expression_on_existing_field_preserves_value(
+            // Generate random field names and values
+            field_name in "[a-z][a-z0-9_]{0,10}",
+            field_value in "[a-zA-Z0-9 ]{1,20}",
+            // Invalid expression variants that fail at runtime without panicking the parser
+            invalid_expr_type in 0usize..3
+        ) {
+            let mut fields: HashMap<String, Value> = HashMap::new();
+            fields.insert(field_name.clone(), Value::String(field_value.clone()));
+
+            let invalid_expression = match invalid_expr_type {
+                0 => "undefined_variable.method()".to_string(),
+                1 => "nonexistent_function()".to_string(),
+                _ => "undefined_var.to_uppercase()".to_string(),
+            };
+
+            // Collision case: expression key matches an existing field.
+            let mut expressions: HashMap<String, String> = HashMap::new();
+            expressions.insert(field_name.clone(), invalid_expression);
+
+            let result = execute_with_fallback(&fields, &expressions);
+
+            // The original decrypted value must be preserved, not overwritten by an error string.
+            prop_assert!(
+                result.contains_key(&field_name),
+                "Original field '{}' should be preserved in result",
+                field_name
+            );
+            prop_assert_eq!(
+                result.get(&field_name),
+                Some(&Value::String(field_value.clone())),
+                "Original field value should be unchanged when a colliding expression fails"
+            );
+        }
+
+        #[test]
         fn prop_valid_expression_on_existing_field_transforms_correctly(
             // Generate a field name that's valid for CEL
             field_name in "[a-z][a-z0-9_]{0,10}",
@@ -250,6 +300,27 @@ mod tests {
                 "Field should be transformed to uppercase"
             );
         }
+    }
+
+    #[test]
+    fn test_failed_in_place_expression_preserves_field() {
+        // An in-place expression (keyed to an existing field) that fails must NOT overwrite the
+        // original decrypted value with an error string. The original PII/PHI must pass through.
+        let expressions: HashMap<String, String> = HashMap::from([(
+            "first_name".to_string(),
+            "undefined_var.to_uppercase()".to_string(),
+        )]);
+
+        let fields: HashMap<String, Value> =
+            HashMap::from([("first_name".to_string(), "Bob".into())]);
+
+        let actual = execute_expressions(&fields, &expressions).unwrap();
+
+        assert_eq!(
+            actual.get("first_name"),
+            Some(&Value::String("Bob".to_string())),
+            "Original decrypted field must be preserved when a colliding expression fails"
+        );
     }
 
     #[test]
